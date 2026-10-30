@@ -62,6 +62,31 @@ PrimeKG 仅执行本地图操作，无模型 token 开销。`ctd_access/pubmed_a
 
 离线验证：`python -m unittest discover -s tests -v`。
 
+## KDD 多方向路由（external.v2）
+
+`radar_policy.decide(request)` 按 `schema_version` 分派；旧 v1、原图谱 demo 和 Radar
+原 baseline 行为保留。v2 的正式请求 schema 与可直接运行的样例分别在
+[`radar-policy-v2.schema.json`](contracts/radar-policy-v2.schema.json) 和
+[`radar-policy-v2.json`](contracts/radar-policy-v2.json)。
+
+v2 在原四种取证/图动作之外支持宿主注册的 `dataset_prepare`、`analysis_run`、
+`professional_assess`。新动作须声明 capability ID/版本、方向和时间范围、输入产物
+ID/版本、资格与预计费用；当前输入不齐、范围不符或能力未注册时排除，返回具体原因。
+`capabilities.input_requirements` 是所需 `artifact.kind` 列表。缺数据时，宿主可提供
+补查候选或范围明确的替代分析；商业、公卫不会被策略强制发送到 MechEvidence。
+
+默认 `information_gain_v1` 用尚未满足检查的重要性、预计信息贡献、范围匹配以及同类
+动作已完成回执的观测收益排序，每步重新决策。回执更新使用固定强度 2 的未训练先验；
+成本用于可执行性筛选和较小的效用折扣。返回每项候选的评分组成及未满足缺口。
+`observed_information` 只有已完成且带当前证据/产物引用时可形成正收益；没有收益测量
+不会补成零。期望信息和 `covers` 永远不能将检查标记通过。
+
+`decide_kdd(request, selector="coverage_cost_baseline_v1")` 提供单独命名的同候选空间
+覆盖/成本对照，不冒充原 baseline。两种方法都保持 `heuristic_untrained`，没有下载模型
+或训练权重。方法版本 `kdd-information-gain-1.0` 与代码内容 hash 同时返回。
+所有执行、权限、许可、硬预算、账本和恢复由宿主负责；不确定回执总是先对账。
+`complete` 仅指宿主声明的观察检查已满足，科学有效性、业务价值与人工采用分别评估。
+
 ## 一、七个步骤 × 七个策略接口
 
 ```

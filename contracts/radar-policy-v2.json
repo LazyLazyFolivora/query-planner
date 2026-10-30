@@ -1,0 +1,142 @@
+{
+  "schema_version": "query-planner.external.v2",
+  "entrypoint": "radar_policy.py:decide(dict)->dict",
+  "schema": "radar-policy-v2.schema.json",
+  "method_version": "kdd-information-gain-1.0",
+  "notes": [
+    "v1 and the original graph/Radar baselines remain unchanged.",
+    "Expected information is a prior, never observed evidence.",
+    "Only completed receipts with current support contribute positive observed_information.",
+    "Unknown/prepared/sent/unconfirmed receipts block every new action, including when checks passed or budget exhausted.",
+    "The host owns execution, permission, ledger, stable operation IDs and recovery.",
+    "complete certifies supplied observable checks only, never scientific validity or business value.",
+    "Capability version and versioned input references are part of semantic deduplication.",
+    "coverage_cost_baseline_v1 is a separately named same-action-space comparator, not the original baseline."
+  ],
+  "example": {
+    "schema_version": "query-planner.external.v2",
+    "question_id": "public-health-window",
+    "question": "Is the notification increase comparable across periods?",
+    "direction": "public_health",
+    "scope": {
+      "direction": "public_health",
+      "as_of": "2026-10-01"
+    },
+    "evidence": [
+      {
+        "id": "bulletin-fixed-1"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": "bulletins",
+        "version": "sha256:fixed",
+        "kind": "source_documents"
+      }
+    ],
+    "checks": [
+      {
+        "id": "comparable_denominator",
+        "status": "unknown",
+        "importance": 1,
+        "missing_inputs": [
+          "population denominator"
+        ],
+        "acceptable_alternatives": [
+          "notification_descriptive"
+        ]
+      },
+      {
+        "id": "pattern",
+        "status": "unknown",
+        "importance": 0.7
+      }
+    ],
+    "capabilities": [
+      {
+        "id": "notification_descriptive",
+        "kind": "analysis_run",
+        "version": "1",
+        "directions": [
+          "public_health"
+        ],
+        "input_requirements": [
+          "source_documents"
+        ]
+      }
+    ],
+    "candidates": [
+      {
+        "id": "search-denominator",
+        "kind": "document_search",
+        "arguments": {
+          "provider": "fabric",
+          "query": "regional surveillance population denominator"
+        },
+        "covers": [
+          "comparable_denominator"
+        ],
+        "expected_information": [
+          {
+            "check_id": "comparable_denominator",
+            "probability": 0.4,
+            "impact": 1
+          }
+        ],
+        "estimated_cost": {
+          "tool_calls": 1
+        }
+      },
+      {
+        "id": "descriptive",
+        "kind": "analysis_run",
+        "capability_id": "notification_descriptive",
+        "arguments": {
+          "capability_id": "notification_descriptive",
+          "capability_version": "1",
+          "input_refs": [
+            {
+              "id": "bulletins",
+              "version": "sha256:fixed"
+            }
+          ],
+          "scope": {
+            "direction": "public_health",
+            "as_of": "2026-10-01"
+          },
+          "parameters": {
+            "mode": "notification_counts_only"
+          }
+        },
+        "covers": [
+          "pattern"
+        ],
+        "expected_information": [
+          {
+            "check_id": "pattern",
+            "probability": 0.9,
+            "impact": 1
+          }
+        ],
+        "applicability": {
+          "status": "eligible",
+          "reason": "fixed notification documents available; incidence inference excluded by host",
+          "scope_match": 1
+        },
+        "estimated_cost": {
+          "tool_calls": 1
+        }
+      }
+    ],
+    "history": [],
+    "budget": {
+      "limits": {
+        "tool_calls": 6
+      },
+      "remaining": {
+        "tool_calls": 6
+      }
+    },
+    "max_steps": 12
+  }
+}
