@@ -1,0 +1,14 @@
+# query-planner
+#
+# 运行环境要求：Python >= 3.10
+#
+# 明确的 GPU 版 PyTorch：CUDA 11.8 wheel
+# 当前 NVIDIA 驱动 528.92 支持 CUDA 11.8 runtime。
+# 如果后续更换驱动，再改成对应的 /cu121、/cu124 等索引。
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+# 核心依赖
+numpy>=1.24
+torch==2.6.0+cu118
+transformers>=4.40
+sentence-transformers>=2.7

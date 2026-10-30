@@ -1,0 +1,215 @@
+{
+  "questions": [
+    {
+      "qid": "q1_metformin_mechanism",
+      "question": "二甲双胍为什么可能导致乳酸性酸中毒？",
+      "qtype": "mechanism",
+      "note": "可达且可完成：存在完整因果链，应结束于 complete",
+      "budget": {
+        "relation_access": 24,
+        "tool_calls": 14,
+        "tokens": 6000
+      },
+      "max_steps": 14,
+      "sufficiency_threshold": 0.99,
+      "requirement_groups": [
+        {
+          "gid": "g_association",
+          "weight": 1.0,
+          "any_of": [
+            {
+              "head": "二甲双胍",
+              "relation": "不良反应",
+              "tail": "乳酸性酸中毒"
+            },
+            {
+              "head": "二甲双胍血药浓度升高",
+              "relation": "加重",
+              "tail": "乳酸性酸中毒"
+            }
+          ]
+        },
+        {
+          "gid": "g_mito",
+          "weight": 1.0,
+          "any_of": [
+            {
+              "head": "二甲双胍",
+              "relation": "药理作用",
+              "tail": "抑制线粒体复合物I"
+            }
+          ]
+        },
+        {
+          "gid": "g_lactate",
+          "weight": 1.0,
+          "any_of": [
+            {
+              "head": "抑制线粒体复合物I",
+              "relation": "导致",
+              "tail": "乳酸生成增加"
+            },
+            {
+              "head": "乳酸生成增加",
+              "relation": "导致",
+              "tail": "乳酸堆积"
+            }
+          ]
+        },
+        {
+          "gid": "g_acidosis",
+          "weight": 1.0,
+          "any_of": [
+            {
+              "head": "乳酸堆积",
+              "relation": "表现为",
+              "tail": "乳酸性酸中毒"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "qid": "q2_warfarin_interaction",
+      "question": "华法林与哪些药物相互作用会增加出血风险？",
+      "qtype": "interaction",
+      "note": "可达且可完成：相互作用是多组可接受证据，应结束于 complete",
+      "budget": {
+        "relation_access": 24,
+        "tool_calls": 14,
+        "tokens": 6000
+      },
+      "max_steps": 14,
+      "sufficiency_threshold": 0.99,
+      "requirement_groups": [
+        {
+          "gid": "g_interaction",
+          "weight": 1.0,
+          "any_of": [
+            {
+              "head": "华法林",
+              "relation": "相互作用",
+              "tail": "阿司匹林"
+            },
+            {
+              "head": "华法林",
+              "relation": "相互作用",
+              "tail": "胺碘酮"
+            },
+            {
+              "head": "布洛芬",
+              "relation": "相互作用",
+              "tail": "华法林"
+            }
+          ]
+        },
+        {
+          "gid": "g_bleed_path",
+          "weight": 1.0,
+          "any_of": [
+            {
+              "head": "凝血时间延长",
+              "relation": "表现为",
+              "tail": "出血风险增加"
+            },
+            {
+              "head": "抑制血小板聚集",
+              "relation": "导致",
+              "tail": "出血风险增加"
+            },
+            {
+              "head": "华法林血药浓度升高",
+              "relation": "加重",
+              "tail": "出血风险增加"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "qid": "q3_metformin_cancer",
+      "question": "二甲双胍的致癌机制是什么？",
+      "qtype": "mechanism",
+      "note": "证据缺失：图谱中不存在致癌证据，应结束于 insufficient（无可用动作）",
+      "budget": {
+        "relation_access": 120,
+        "tool_calls": 45,
+        "tokens": 8000
+      },
+      "max_steps": 40,
+      "sufficiency_threshold": 0.99,
+      "requirement_groups": [
+        {
+          "gid": "g_cancer_mechanism",
+          "weight": 1.0,
+          "any_of": [
+            {
+              "head": "二甲双胍",
+              "relation": "致癌机制",
+              "tail": "肿瘤发生"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "qid": "q4_ibuprofen_budget",
+      "question": "布洛芬的完整作用机制、相互作用和出血风险是什么？",
+      "qtype": "mechanism",
+      "note": "可达但预算极小：应在证据不全时因预算耗尽结束于 insufficient",
+      "budget": {
+        "relation_access": 8,
+        "tool_calls": 5,
+        "tokens": 3000
+      },
+      "max_steps": 12,
+      "sufficiency_threshold": 0.99,
+      "requirement_groups": [
+        {
+          "gid": "g_ibu_mech",
+          "weight": 1.0,
+          "any_of": [
+            {
+              "head": "布洛芬",
+              "relation": "药理作用",
+              "tail": "抑制环氧化酶"
+            }
+          ]
+        },
+        {
+          "gid": "g_ibu_cox",
+          "weight": 1.0,
+          "any_of": [
+            {
+              "head": "抑制环氧化酶",
+              "relation": "导致",
+              "tail": "前列腺素合成减少"
+            }
+          ]
+        },
+        {
+          "gid": "g_ibu_gi",
+          "weight": 1.0,
+          "any_of": [
+            {
+              "head": "布洛芬",
+              "relation": "不良反应",
+              "tail": "胃肠道出血"
+            }
+          ]
+        },
+        {
+          "gid": "g_ibu_interaction",
+          "weight": 1.0,
+          "any_of": [
+            {
+              "head": "布洛芬",
+              "relation": "相互作用",
+              "tail": "华法林"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
