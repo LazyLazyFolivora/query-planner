@@ -170,25 +170,21 @@ python run_demo.py --selectors heuristic,linear,model --quiet       # ④ 消融
 
 ## 五、当前结果
 
-**默认（全模型）**：
+2026-10-30 验证的**全规则基线**：`python run_demo.py --preset rule --quiet`。
+当前分支与原始提交 `6ef6453` 的四题输出逐字一致：
 
 | 问题 | 决策 | 停止原因 | ra | 调用 | 步 | gold | 判定 |
 |---|---|---|---|---|---|---|---|
-| q1 二甲双胍机制（可达） | complete | sufficient_evidence | 13 | 11 | 12 | 1.00 | 正确完成 |
+| q1 二甲双胍机制（可达） | complete | sufficient_evidence | 9 | 7 | 8 | 0.75 | 错误完成 |
 | q2 华法林相互作用 | complete | sufficient_evidence | 3 | 1 | 2 | 1.00 | 正确完成 |
 | q3 致癌机制（图谱中不存在） | insufficient | no_legal_action | 22 | 22 | 23 | 0.00 | 正确不足 |
-| q4 布洛芬（预算 ra=8） | insufficient | budget_exhausted | 7 | 2 | 3 | 0.00 | 正确不足 |
+| q4 布洛芬（预算 ra=8） | insufficient | budget_exhausted | 8 | 3 | 4 | 0.25 | 正确不足 |
 
-**全规则基线**（`--preset rule`）：4 题判定一致，q1 的 ra 同为 13。
+q1 暴露了旧 demo 的不足：可观测取证检查已通过，但独立 gold 证据组仅覆盖 0.75，
+仍有一次错误完成。该问题在基线已存在，当前接入没有修改旧图谱充分性算法。
+因此运行结束与接口接通不能证明证据充分性或学习方法有效。
 
-**终止规则消融**（固定模型选择器）：
-
-| 终止规则 | q1 表现 |
-|---|---|
-| `model`（分层三态头） | 正确完成，ra=13，gold=1.00 |
-| `flat`（扁平三分类基线） | 用于对照“三分类头是否足够” |
-| `rule`（规则三态） | 正确完成，ra=13，gold=1.00 |
-| `naive_target`（见目标就停） | **错误完成，ra=1，gold=0.25** ← 过早停止 |
+默认全模型与终止规则消融尚未针对当前版本重新验证，需固定权重、配置与环境后另行评测。
 
 ---
 
