@@ -1,0 +1,2 @@
+# Incremental host policy: no Torch, transformers, model downloads or API keys.
+numpy>=1.24

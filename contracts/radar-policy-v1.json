@@ -1,0 +1,87 @@
+{
+  "schema_version": "query-planner.external.v1",
+  "entrypoint": "radar_policy.py:decide(dict)->dict",
+  "limits": {
+    "candidates": 128,
+    "history": 256,
+    "checks": 64,
+    "max_steps": 256
+  },
+  "notes": [
+    "Default reuses HeuristicSelector and RuleStop; no network/model downloads.",
+    "passed required checks need evidence_ids referencing request.evidence; otherwise treated unknown.",
+    "covers means possible coverage, never a successful observation.",
+    "All attempted kind+arguments are deduplicated, including not_sent. Unknown/prepared receipts block new planning.",
+    "Omitted budget dimensions are unlimited for policy only; the host retains all hard limits.",
+    "Unknown cost in a limited dimension excludes that action; do not invent zero.",
+    "document_search is exactly one explicit provider and one query/terms set; tool_calls=1.",
+    "Evidence payloads may have extra provenance fields; the policy only reads IDs."
+  ],
+  "example": {
+    "schema_version": "query-planner.external.v1",
+    "question": "Which clinical evidence supports this mechanism?",
+    "checks": [
+      {
+        "id": "clinical_evidence",
+        "status": "unknown"
+      }
+    ],
+    "evidence": [],
+    "history": [],
+    "candidates": [
+      {
+        "id": "epmc-1",
+        "kind": "document_search",
+        "arguments": {
+          "provider": "fabric",
+          "source_id": "europe_pmc",
+          "terms": [
+            "Elranatamab"
+          ]
+        },
+        "covers": [
+          "clinical_evidence"
+        ],
+        "estimated_cost": {
+          "tool_calls": 1
+        }
+      }
+    ],
+    "budget": {
+      "limits": {
+        "tool_calls": 6
+      },
+      "remaining": {
+        "tool_calls": 6
+      }
+    },
+    "max_steps": 12
+  },
+  "history_statuses": {
+    "prepared": "reserved but dispatch not yet reconciled; blocks further actions",
+    "sent": "dispatched, waiting for result; blocks further actions",
+    "unknown": "dispatch outcome uncertain; blocks all new planning, never retry with a new id",
+    "unconfirmed": "alias of unknown",
+    "completed": "finished, consumed attempt; new_evidence_ids describes actual receipt",
+    "failed": "confirmed finished unsuccessfully; consumed attempt, no automatic retry",
+    "not_sent": "confirmed no dispatch; still no automatic retry under this contract"
+  },
+  "history_shape": {
+    "action_id": "unique attempt id; supply only the latest receipt for each attempt",
+    "kind": "same kind as selected action",
+    "arguments": "exact selected arguments",
+    "status": "one of history_statuses",
+    "new_evidence_ids": "optional list of actual new evidence IDs"
+  },
+  "kind_mapping": {
+    "document_search": "passage_retrieve; one fabric/weknora query",
+    "entity_relations": "entity_lookup; list relation types of already grounded entity, not name disambiguation",
+    "graph_neighbors": "relation_expand",
+    "graph_path": "bounded_path"
+  },
+  "projection": "Required checks with evidence refs become external observable sufficiency; covers overlap with unmet checks and actual estimated costs become existing 18 action features. No synthetic triples are constructed. Graph-specific checkpoints are not compatible with this external feature schema.",
+  "dependencies": [
+    "numpy>=1.24 (default)"
+  ],
+  "default_training_status": "heuristic_untrained"
+}

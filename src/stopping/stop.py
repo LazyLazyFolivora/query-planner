@@ -32,11 +32,14 @@ DEFAULT_COMPLETE_THRESHOLD = 0.65
 
 def _budget_ratio(state: PolicyState) -> float:
     limits = state.budget_limits or {}
-    total = max(limits.get("relation_access", 1), 1)
-    return min(state.remaining.get("relation_access", 0) / total, 1.0)
+    dimension = getattr(state, "budget_axis", "relation_access")
+    total = max(limits.get(dimension, 1), 1)
+    return min(state.remaining.get(dimension, 0) / total, 1.0)
 
 
 def _budget_exhausted(state: PolicyState) -> bool:
+    if getattr(state, "external_checks", None) is not None:
+        return bool(state.legal_action_count) and state.affordable_action_count == 0
     return (
         state.remaining.get("relation_access", 0) <= 0
         or state.remaining.get("tool_calls", 0) <= 0

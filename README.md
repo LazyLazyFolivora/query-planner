@@ -12,6 +12,56 @@
 
 ---
 
+## Radar 逐步调用接口
+
+`radar_policy.py:decide(request)` 是纯 Python 策略入口，默认仅依赖
+`requirements-policy.txt` 中的 NumPy；不会读取密钥、访问网络、下载嵌入模型或执行候选动作。
+可通过 `importlib.util.spec_from_file_location` 按文件加载，不会占用宿主的 `src` 包名。
+输入/输出版本及完整样例在 [`contracts/radar-policy-v1.json`](contracts/radar-policy-v1.json)。
+
+宿主每步提供真实剩余预算、合法候选、已有证据 ID、必要取证检查及每次尝试的最新回执。
+接口复用 `HeuristicSelector.select` 和 `RuleStop.decide`：候选 `covers` 与未通过检查的交集
+进入既有 18 维动作特征，实际预计成本进入成本特征；已通过且引用现有证据的检查进入
+`observable_sufficiency_status`。没有构造假三元组或拿候选覆盖意图充当已取得证据。
+反馈更新后重新选择一项，`complete` 仅表示宿主给定的必要取证检查全部通过，不表示医学结论成立。
+缺少必要检查不能 `complete`。宿主负责权限、检索/图查询、付费模型、硬预算、持久化和恢复。
+
+`document_search` 每项仅代表一个 Fabric 或 WeKnora provider 的一次查询；
+`entity_relations` 代表已落地实体的关系种类查询，`graph_neighbors` 为邻居展开，
+`graph_path` 为路径查询。后者是否用 Cypher 由宿主执行器决定，本接口不连接 Neo4j。
+候选的 `covers` 必须指向声明的检查；预计成本未知且该维度有限额时排除该候选。
+预算省略维度只表示策略不限制该维度，宿主仍保留硬保护。未知成本不会在返回候选中改成零。
+
+`prepared/sent/unknown/unconfirmed` 回执会阻止新动作，等待宿主对账；
+`completed/failed/not_sent` 都是已尝试动作，本接口不自动重试。
+历史每个 action ID 只传最新回执；按动作种类和参数语义去重，因此换 ID 不能绕过已发送回执。
+候选按 ID 稳定排序，同一快照恢复会得到同一结果。宿主在真正派发前须先持久化选择和回执状态。
+
+`create_policy(selector="linear"|"model", stop="rule"|"model")` 可显式复用已有本地模型头，
+其中 `model` 需要调用方另装 PyTorch。外部状态编码为 `external_observations_v1`（12 维），
+动作特征也有外部语义；旧图谱状态 checkpoint 不可直接混用。没有随附训练权重，默认结果
+明确标记 `heuristic_untrained`；接通链路不等于已验证学习方法。
+
+工厂离线入口 `load_public_questions` 只读取
+`release/public/planner_questions.jsonl` 的 `task-construction-v2`，保留环境标识和预算，
+不读取隐藏目标/manifest，不接受旧出题探索轨迹，`requirement_groups` 始终为空。
+`scripts/run_public_questions.py` 使用现有 rule/feature/heuristic pipeline 重新执行检索，输出独立
+solver transitions、实际成本、输入及世界文件 SHA256。必须显式绑定 `--environment-ref`：
+
+```bash
+python scripts/run_public_questions.py --questions release/public/planner_questions.jsonl \
+  --backend primekg --world public-world.sqlite --environment-ref YOUR_PUBLIC_ENVIRONMENT \
+  --out fresh-solver-trajectories.jsonl
+```
+
+这个离线 runner 仅支持兼容 PrimeKG `edges` 表的 SQLite，以及原有 ToyKG JSON。
+要求显式 `relation_access/tool_calls` 预算；ToyKG 文段检索另需 `tokens`。
+PrimeKG 仅执行本地图操作，无模型 token 开销。`ctd_access/pubmed_access/primekg_access`
+等未映射计量返回 `unsupported_budget`，不会擅自换单位；没有声称接通这些后端。
+停止后的隐藏目标评测应由独立评测进程进行。
+
+离线验证：`python -m unittest discover -s tests -v`。
+
 ## 一、七个步骤 × 七个策略接口
 
 ```
