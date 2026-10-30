@@ -15,6 +15,9 @@ from .external import DIMENSIONS, HISTORY_STATUSES, _canonical_arguments, _list,
 
 SCHEMA_VERSION = "query-planner.external.v2"
 METHOD_VERSION = "kdd-information-gain-1.0"
+# Existing stop rules: reconcile pending receipts, then observed required checks,
+# step bound, legal/affordable candidates and positive expected information.
+STOP_VERSION = "observed_checks_v1"
 DIRECTIONS = {"pipeline", "research", "business", "public_health"}
 RETRIEVAL_KINDS = {"document_search", "entity_relations", "graph_neighbors", "graph_path"}
 CAPABILITY_KINDS = {"dataset_prepare", "analysis_run", "professional_assess"}
@@ -319,7 +322,7 @@ def decide(request, *, selector="information_gain_v1", version=METHOD_VERSION):
             for cid in sorted(unmet)]
     return {"schema_version": SCHEMA_VERSION, "decision": decision, "reason": reason,
             "action": copy.deepcopy(selected),
-            "policy": {"version": version, "method_version": METHOD_VERSION, "selector": selector,
+            "policy": {"version": version, "method_version": METHOD_VERSION, "selector": selector, "stop": STOP_VERSION,
                        "training_status": "heuristic_untrained", "encoder": "kdd_observed_information_v1",
                        "scope": "host_observation_coverage_only_not_scientific_or_business_approval"},
             "state_summary": {"direction": request["direction"], "checks": list(state["checks"].values()),

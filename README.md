@@ -84,6 +84,7 @@ ID/版本、资格与预计费用；当前输入不齐、范围不符或能力�
 `decide_kdd(request, selector="coverage_cost_baseline_v1")` 提供单独命名的同候选空间
 覆盖/成本对照，不冒充原 baseline。两种方法都保持 `heuristic_untrained`，没有下载模型
 或训练权重。方法版本 `kdd-information-gain-1.0` 与代码内容 hash 同时返回。
+停止方法如实记录为 `observed_checks_v1`：先处理待对账回执，再检查真实观察覆盖、步数、可执行候选和信息收益；它不是学习得到的停止模型。
 所有执行、权限、许可、硬预算、账本和恢复由宿主负责；不确定回执总是先对账。
 `complete` 仅指宿主声明的观察检查已满足，科学有效性、业务价值与人工采用分别评估。
 
