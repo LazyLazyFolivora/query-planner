@@ -8,3 +8,7 @@ __pycache__/
 
 # Generated checkpoints, trajectories, and demo outputs
 outputs/
+
+# Local-only probes and development checks
+/_probe*.py
+/scripts/selftest_step*.py
