@@ -83,7 +83,7 @@ ID/版本、资格与预计费用；当前输入不齐、范围不符或能力�
 
 `decide_kdd(request, selector="coverage_cost_baseline_v1")` 提供单独命名的同候选空间
 覆盖/成本对照，不冒充原 baseline。两种方法都保持 `heuristic_untrained`，没有下载模型
-或训练权重。方法版本 `kdd-information-gain-1.1` 与代码内容 hash 同时返回。
+或训练权重。方法版本 `kdd-information-gain-1.2` 与代码内容 hash 同时返回。
 停止方法如实记录为 `observed_checks_reading_v2`：先处理待对账回执，再检查真实观察覆盖及未读材料、步数、可执行候选和信息收益；它不是学习得到的停止模型。
 所有执行、权限、许可、硬预算、账本和恢复由宿主负责；不确定回执总是先对账。
 `complete` 仅指宿主声明的观察检查已满足，科学有效性、业务价值与人工采用分别评估。
@@ -433,3 +433,15 @@ passed         -> (1, 1)
 - `ModelEncoder.fit(embeddings, targets)` —— 更新问题投影矩阵 `W`；实际语言模型编码器用 `SentenceEmbedder`。
 - `HierarchicalModelStop`、`ModelSelector` 使用 PyTorch MLP 残差头；未训练时输出头零初始化，
   **初始为 0**：未训练时行为等价于启发式，训练后才生效。
+
+
+v2 的有界目录发现只接受 `document_search` 的一个窄例外：`provider="fabric"`、
+`catalog_discovery=true`、`terms=[]`，且 `query` 完全缺席。来源、`mode/as_of/is_demo`
+及含方向的 `scope` 必须明确且一致；`limit` 为 1–20 的整数，预计 `tool_calls=1`。
+不接收 cursor 或翻页参数。普通空检索和 WeKnora 空检索仍拒绝，旧 v1/原 baseline 不变。
+宿主只在 `initial_retrieval_version="literal-language-alternatives-v1"` 的新 v2 调查中，
+本来源所有不同关键词初查都实际 empty、整轮无 evidence 后提供一次该来源候选；
+prepared/sent/unknown/failed 不能替代 empty。宿主按固定 reading_limits 选页长、核许可、
+执行和记实际 query/tool 账。Planner 不伪造空查询回执或占位 query；改 ID、index、说明或
+页长不会重扫同一来源/时点。目录结果仍只是待读候选，不是已覆盖证据。
+合成契约样例见 [`radar-policy-v2-catalog.example.json`](contracts/radar-policy-v2-catalog.example.json)。

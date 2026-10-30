@@ -582,6 +582,174 @@
                 }
               }
             }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "arguments": {
+                  "properties": {
+                    "catalog_discovery": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                },
+                "arguments": {
+                  "required": [
+                    "catalog_discovery"
+                  ],
+                  "properties": {
+                    "catalog_discovery": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "applicability"
+              ],
+              "properties": {
+                "arguments": {
+                  "type": "object",
+                  "required": [
+                    "provider",
+                    "source_id",
+                    "catalog_discovery",
+                    "terms",
+                    "limit",
+                    "mode",
+                    "as_of",
+                    "is_demo",
+                    "scope"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "provider": {
+                      "const": "fabric"
+                    },
+                    "source_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 400
+                    },
+                    "catalog_discovery": {
+                      "const": true
+                    },
+                    "terms": {
+                      "type": "array",
+                      "maxItems": 0
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "mode": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "is_demo": {
+                      "type": "boolean"
+                    },
+                    "scope": {
+                      "type": "object",
+                      "properties": {
+                        "direction": {
+                          "enum": [
+                            "pipeline",
+                            "research",
+                            "business",
+                            "public_health"
+                          ]
+                        },
+                        "as_of": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "mode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "is_demo": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "direction",
+                        "mode",
+                        "as_of",
+                        "is_demo"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "phase": {
+                      "const": "initial"
+                    },
+                    "index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 256
+                    },
+                    "plan": {
+                      "type": "object",
+                      "required": [
+                        "source_id",
+                        "terms"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "source_id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "terms": {
+                          "type": "array",
+                          "maxItems": 0
+                        },
+                        "reason": {}
+                      }
+                    }
+                  },
+                  "description": "One host-authorized bounded first page after its literal-language alternatives actually returned empty and the investigation has no evidence. No query/cursor/pagination. Host binds source permission, charges actual receipt and offers this once per source; complete never certifies business correctness."
+                },
+                "estimated_cost": {
+                  "required": [
+                    "tool_calls"
+                  ],
+                  "properties": {
+                    "tool_calls": {
+                      "const": 1
+                    }
+                  }
+                }
+              }
+            }
           }
         ]
       },
@@ -949,5 +1117,50 @@
       },
       "description": "Per-kind maximum attempted actions, including failed/not_sent; does not enlarge host max_steps or unified budget."
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "candidates": {
+            "contains": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                },
+                "arguments": {
+                  "required": [
+                    "catalog_discovery"
+                  ],
+                  "properties": {
+                    "catalog_discovery": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "candidates"
+        ]
+      },
+      "then": {
+        "required": [
+          "scope"
+        ],
+        "properties": {
+          "scope": {
+            "required": [
+              "direction",
+              "mode",
+              "as_of",
+              "is_demo"
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

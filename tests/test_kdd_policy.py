@@ -144,6 +144,97 @@ class KDDRoutingTests(unittest.TestCase):
             req = request(); change(req)
             with self.assertRaises(ValueError): radar_policy.decide(req)
 
+    def catalog_request(self):
+        return json.loads((ROOT / "contracts/radar-policy-v2-catalog.example.json").read_text())
+
+    def test_catalog_discovery_is_an_explicit_bounded_fabric_action(self):
+        req = self.catalog_request(); before = copy.deepcopy(req)
+        out = radar_policy.decide(req)
+        self.assertEqual(out["decision"], "continue")
+        self.assertEqual(out["action"], req["candidates"][0])
+        self.assertEqual(out["policy"]["method_version"], "kdd-information-gain-1.2")
+        self.assertEqual(out["policy"]["training_status"], "heuristic_untrained")
+        self.assertEqual(req, before)
+        self.assertEqual(out["action"]["arguments"]["terms"], [])
+        self.assertNotIn("query", out["action"]["arguments"])
+
+    def test_catalog_discovery_does_not_relax_ordinary_empty_or_invalid_search(self):
+        changes = [
+            lambda a: a.update(provider="weknora"),
+            lambda a: a.update(query=None), lambda a: a.update(query=""), lambda a: a.update(query="*"),
+            lambda a: a.update(terms=["placeholder"]), lambda a: a.update(catalog_discovery=False),
+            lambda a: a.update(catalog_discovery="true"), lambda a: a.update(catalog_discovery=1),
+            lambda a: a.pop("catalog_discovery"), lambda a: a.pop("limit"),
+            lambda a: a.update(limit=0), lambda a: a.update(limit=21),
+            lambda a: a.update(limit=True), lambda a: a.update(limit=1.5),
+            lambda a: a.update(cursor="next-page"), lambda a: a.update(phase="followup"),
+            lambda a: a["plan"].update(source_id="another-source"),
+            lambda a: a["plan"].update(terms=["placeholder"]),
+        ]
+        for index, change in enumerate(changes):
+            with self.subTest(index=index):
+                req = self.catalog_request(); change(req["candidates"][0]["arguments"])
+                with self.assertRaises(ValueError): radar_policy.decide(req)
+        req = self.catalog_request(); req["schema_version"] = "query-planner.external.v1"
+        with self.assertRaises(ValueError): radar_policy.decide(req)
+
+    def test_catalog_discovery_requires_explicit_matching_scope_and_one_call(self):
+        for key in ("source_id", "mode", "as_of", "is_demo", "scope"):
+            req = self.catalog_request(); req["candidates"][0]["arguments"].pop(key)
+            with self.subTest(key=key), self.assertRaises(ValueError): radar_policy.decide(req)
+        for key, value in (("mode", "other-mode"), ("as_of", "2027-01-01"), ("is_demo", False)):
+            req = self.catalog_request(); a = req["candidates"][0]["arguments"]
+            a[key] = value; a["scope"][key] = value
+            out = radar_policy.decide(req)
+            self.assertIn("scope_mismatch", [x["reason"] for x in out["state_summary"]["excluded_candidates"]])
+        for change in [lambda r: r["scope"].pop("is_demo"),
+                       lambda r: r["candidates"][0]["arguments"]["scope"].update(is_demo=1),
+                       lambda r: r["candidates"][0]["estimated_cost"].update(tool_calls=0),
+                       lambda r: r["candidates"][0]["estimated_cost"].update(tool_calls=2)]:
+            req = self.catalog_request(); change(req)
+            with self.assertRaises(ValueError): radar_policy.decide(req)
+        req = self.catalog_request(); req["evidence"] = [{"id": "already-read"}]
+        out = radar_policy.decide(req)
+        self.assertIn("catalog_discovery_requires_empty_evidence", [x["reason"] for x in out["state_summary"]["excluded_candidates"]])
+
+    def test_catalog_first_page_cannot_repeat_by_id_metadata_or_limit(self):
+        for status in ("completed", "failed", "not_sent"):
+            req = self.catalog_request(); original = copy.deepcopy(req["candidates"][0])
+            req["history"].append(receipt(original, status=status))
+            candidate = req["candidates"][0]; candidate["id"] = "renamed"
+            candidate["arguments"].update(index=99, limit=20)
+            candidate["arguments"]["plan"]["reason"] = "Different display wording"
+            out = radar_policy.decide(req)
+            self.assertEqual(out["decision"], "insufficient")
+            self.assertIsNone(out["action"])
+            self.assertEqual(out["state_summary"]["excluded_candidates"], [{"id": "renamed", "reason": "already_attempted"}])
+        for status in ("prepared", "sent", "unknown", "unconfirmed"):
+            req = self.catalog_request(); req["history"].append(receipt(req["candidates"][0], status=status))
+            req["budget"]["remaining"]["tool_calls"] = 0
+            self.assertEqual(radar_policy.decide(req)["reason"], "pending_execution_or_reconciliation")
+
+    def test_catalog_discovery_respects_normal_action_quota_and_budget(self):
+        req = self.catalog_request(); req["action_limits"] = {"document_search": 2}
+        out = radar_policy.decide(req)
+        self.assertEqual(out["decision"], "insufficient")
+        self.assertIn("action_limit_reached", [x["reason"] for x in out["state_summary"]["excluded_candidates"]])
+        req = self.catalog_request(); req["budget"]["remaining"]["tool_calls"] = 0
+        self.assertEqual(radar_policy.decide(req)["decision"], "insufficient")
+
+    def test_catalog_example_and_invalid_shapes_match_additive_schema(self):
+        import jsonschema
+        schema = json.loads((ROOT / "contracts/radar-policy-v2.schema.json").read_text())
+        jsonschema.Draft202012Validator.check_schema(schema)
+        req = self.catalog_request(); jsonschema.validate(req, schema)
+        for change in [lambda r: r["candidates"][0]["arguments"].update(query=None),
+                       lambda r: r["candidates"][0]["arguments"].update(provider="weknora"),
+                       lambda r: r["candidates"][0]["arguments"].update(limit=21),
+                       lambda r: r["candidates"][0]["arguments"].update(cursor="next"),
+                       lambda r: r["candidates"][0]["arguments"].update(catalog_discovery=1),
+                       lambda r: r["scope"].pop("is_demo")]:
+            bad = copy.deepcopy(req); change(bad)
+            with self.assertRaises(jsonschema.ValidationError): jsonschema.validate(bad, schema)
+
     def reading_request(self):
         return json.loads((ROOT / "contracts/radar-policy-v2-reading-fetch.example.json").read_text())
 

@@ -2,7 +2,7 @@
   "schema_version": "query-planner.external.v2",
   "entrypoint": "radar_policy.py:decide(dict)->dict",
   "schema": "radar-policy-v2.schema.json",
-  "method_version": "kdd-information-gain-1.1",
+  "method_version": "kdd-information-gain-1.2",
   "notes": [
     "v1 and the original graph/Radar baselines remain unchanged.",
     "Expected information is a prior, never observed evidence.",

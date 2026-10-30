@@ -1,0 +1,123 @@
+{
+  "schema_version": "query-planner.external.v2",
+  "question_id": "public-health-window",
+  "question": "SYNTHETIC: inspect visible source records after literal language alternatives returned empty.",
+  "direction": "research",
+  "scope": {
+    "direction": "research",
+    "mode": "current",
+    "as_of": "2026-10-31T00:00:00Z",
+    "is_demo": true
+  },
+  "evidence": [],
+  "artifacts": [],
+  "checks": [
+    {
+      "id": "source_materials",
+      "status": "unknown",
+      "required": true,
+      "importance": 1
+    }
+  ],
+  "capabilities": [],
+  "candidates": [
+    {
+      "id": "synthetic-catalog",
+      "kind": "document_search",
+      "arguments": {
+        "provider": "fabric",
+        "source_id": "synthetic_source",
+        "catalog_discovery": true,
+        "terms": [],
+        "limit": 8,
+        "mode": "current",
+        "as_of": "2026-10-31T00:00:00Z",
+        "is_demo": true,
+        "scope": {
+          "direction": "research",
+          "mode": "current",
+          "as_of": "2026-10-31T00:00:00Z",
+          "is_demo": true
+        },
+        "phase": "initial",
+        "index": 3,
+        "plan": {
+          "source_id": "synthetic_source",
+          "terms": [],
+          "reason": "SYNTHETIC observed empty literal alternatives; first page only."
+        }
+      },
+      "covers": [
+        "source_materials"
+      ],
+      "applicability": {
+        "status": "eligible",
+        "scope_match": 1
+      },
+      "estimated_cost": {
+        "tool_calls": 1,
+        "tokens": 0,
+        "relation_access": 0
+      }
+    }
+  ],
+  "history": [
+    {
+      "action_id": "synthetic-literal-0",
+      "kind": "document_search",
+      "arguments": {
+        "provider": "fabric",
+        "source_id": "synthetic_source",
+        "terms": [
+          "synthetic-literal-0"
+        ],
+        "mode": "current",
+        "as_of": "2026-10-31T00:00:00Z",
+        "is_demo": true
+      },
+      "status": "completed",
+      "new_evidence_ids": [],
+      "actual_cost": {
+        "tool_calls": 1,
+        "tokens": 0,
+        "relation_access": 0
+      }
+    },
+    {
+      "action_id": "synthetic-literal-1",
+      "kind": "document_search",
+      "arguments": {
+        "provider": "fabric",
+        "source_id": "synthetic_source",
+        "terms": [
+          "synthetic-literal-1"
+        ],
+        "mode": "current",
+        "as_of": "2026-10-31T00:00:00Z",
+        "is_demo": true
+      },
+      "status": "completed",
+      "new_evidence_ids": [],
+      "actual_cost": {
+        "tool_calls": 1,
+        "tokens": 0,
+        "relation_access": 0
+      }
+    }
+  ],
+  "budget": {
+    "limits": {
+      "tool_calls": 8,
+      "tokens": 0,
+      "relation_access": 0
+    },
+    "remaining": {
+      "tool_calls": 6,
+      "tokens": 0,
+      "relation_access": 0
+    }
+  },
+  "max_steps": 12,
+  "provenance": "synthetic_fixture",
+  "qualification": "Contract-only fixture; no HTTP, real empty receipt, source execution, hidden target or factual judgement."
+}

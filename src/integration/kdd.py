@@ -14,7 +14,7 @@ import math
 from .external import DIMENSIONS, HISTORY_STATUSES, _canonical_arguments, _list, _number, _text
 
 SCHEMA_VERSION = "query-planner.external.v2"
-METHOD_VERSION = "kdd-information-gain-1.1"
+METHOD_VERSION = "kdd-information-gain-1.2"
 # Pending receipts precede every stop; visible unread obligations prevent a
 # coverage-only completion. A stop never certifies scientific/business validity.
 STOP_VERSION = "observed_checks_reading_v2"
@@ -81,12 +81,52 @@ def _scope_matches(action_scope, scope, direction):
             and all(action_scope.get(key) == scope[key] for key in ("as_of", "mode", "is_demo") if key in scope))
 
 
+def _catalog_identity(args):
+    """A host-unlocked directory action is one bounded first page, never a query rewrite."""
+    required = {"provider", "source_id", "catalog_discovery", "terms", "limit", "mode", "as_of", "is_demo", "scope"}
+    if (not required.issubset(args) or set(args) - required - {"phase", "index", "plan"}
+            or args.get("provider") != "fabric" or args.get("catalog_discovery") is not True
+            or args.get("terms") != [] or "query" in args):
+        raise ValueError("catalog_discovery requires an explicit Fabric first-page action with terms=[] and no query")
+    source = _text(args["source_id"], "catalog_discovery.source_id", 400)
+    for key in ("mode", "as_of"):
+        _text(args[key], "catalog_discovery." + key, 100)
+    if type(args["is_demo"]) is not bool:
+        raise ValueError("catalog_discovery.is_demo must be boolean")
+    _number(args["limit"], "catalog_discovery.limit", 20)
+    if args["limit"] < 1:
+        raise ValueError("catalog_discovery.limit must be in [1, 20]")
+    scope = args["scope"]
+    if (not isinstance(scope, dict) or set(scope) != {"direction", "mode", "as_of", "is_demo"}
+            or not isinstance(scope.get("direction"), str) or scope["direction"] not in DIRECTIONS
+            or type(scope["is_demo"]) is not bool
+            or any(scope[key] != args[key] for key in ("mode", "as_of", "is_demo"))):
+        raise ValueError("catalog_discovery requires matching explicit flat and nested scope")
+    if "phase" in args and args["phase"] != "initial":
+        raise ValueError("catalog_discovery is only an initial retrieval action")
+    if "index" in args:
+        _number(args["index"], "catalog_discovery.index", 256)
+    if "plan" in args:
+        plan = args["plan"]
+        if (not isinstance(plan, dict) or set(plan) - {"source_id", "terms", "reason"}
+                or plan.get("source_id") != source or plan.get("terms") != []):
+            raise ValueError("catalog_discovery plan must preserve the same source and empty terms")
+    # One attempt per source/scope. A new ID, page length or host annotation
+    # cannot turn a received, failed or unknown directory operation into a retry.
+    return {"provider": "fabric", "source_id": source, "catalog_discovery": True, "scope": scope}
+
+
 def semantic_key(kind, arguments):
     if kind not in KINDS or not isinstance(arguments, dict):
         raise ValueError("invalid KDD action kind or arguments")
     # Reference identity is only (id, version). Ordering or optional display
     # metadata must never turn an already attempted operation into a new one.
     normalized = _canonical_arguments(arguments)
+    if kind == "document_search" and "catalog_discovery" in arguments:
+        if type(arguments["catalog_discovery"]) is not bool:
+            raise ValueError("catalog_discovery must be boolean")
+        if arguments["catalog_discovery"]:
+            normalized = _catalog_identity(arguments)
     if "input_refs" in normalized:
         references = _refs(normalized["input_refs"], "arguments.input_refs")
         normalized["input_refs"] = [{"id": identity, "version": version}
@@ -296,13 +336,26 @@ def _validate(request):
         if kind == "document_search":
             if args.get("provider") not in {"fabric", "weknora"} or costs.get("tool_calls") != 1:
                 raise ValueError("document_search requires one fabric/weknora query with tool_calls=1")
-            query, terms = args.get("query"), args.get("terms")
-            if bool(query) == bool(terms):
-                raise ValueError("document_search requires query or terms")
-            if query:
-                _text(query, "query", 1000)
+            if args.get("catalog_discovery") is True:
+                # Shape and first-page identity were validated by semantic_key.
+                # The host alone unlocks this after actual empty language alternatives,
+                # authorizes the source, performs the request and charges its receipt.
+                if (not {"direction", "mode", "as_of", "is_demo"}.issubset(scope)
+                        or type(scope["is_demo"]) is not bool):
+                    raise ValueError("catalog_discovery requires the complete fixed request scope")
+                if not _scope_matches(args["scope"], scope, direction):
+                    reason = reason or "scope_mismatch"
+                if "applicability" not in raw:
+                    reason = reason or "missing_applicability"
+                if evidence:
+                    reason = reason or "catalog_discovery_requires_empty_evidence"
             else:
-                if not 1 <= len(_ids(terms, "terms", 8)) <= 8:
+                query, terms = args.get("query"), args.get("terms")
+                if bool(query) == bool(terms):
+                    raise ValueError("document_search requires query or terms")
+                if query:
+                    _text(query, "query", 1000)
+                elif not 1 <= len(_ids(terms, "terms", 8)) <= 8:
                     raise ValueError("terms must not be empty")
         reading = []
         if kind == "document_read":
