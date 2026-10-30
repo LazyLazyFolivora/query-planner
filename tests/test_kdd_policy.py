@@ -122,7 +122,7 @@ class KDDRoutingTests(unittest.TestCase):
         req["budget"]["remaining"]["tool_calls"] = 0
         out = radar_policy.decide(req)
         self.assertEqual(out["decision"], "complete")
-        self.assertEqual(out["policy"]["stop"], "observed_checks_v1")
+        self.assertEqual(out["policy"]["stop"], "observed_checks_reading_v2")
         self.assertIn("not_scientific_or_business_approval", out["policy"]["scope"])
 
     def test_same_space_comparator_is_separately_named_and_deterministic(self):
@@ -142,6 +142,139 @@ class KDDRoutingTests(unittest.TestCase):
                        lambda r: r["candidates"][1]["arguments"].update(capability_id="different"),
                        lambda r: r.update(max_steps=0)]:
             req = request(); change(req)
+            with self.assertRaises(ValueError): radar_policy.decide(req)
+
+    def reading_request(self):
+        return json.loads((ROOT / "contracts/radar-policy-v2-reading-fetch.example.json").read_text())
+
+    def test_unknown_coverage_is_preserved_and_not_rewarded(self):
+        req = request()
+        a = req["candidates"][0]
+        a["covers"].append("model:unknown")
+        a["expected_information"].append({"check_id": "model:unknown", "probability": 1, "impact": 1})
+        old = copy.deepcopy(a); old["id"] = "earlier"; old["arguments"]["query"] = "earlier query"
+        req["history"] = [receipt(old, new_evidence_ids=["bulletin-fixed-1"],
+            observed_information={"model:unknown": 1},
+            check_updates=[{"id": "model:unknown", "status": "passed", "evidence_ids": ["bulletin-fixed-1"]}])]
+        before = copy.deepcopy(req)
+        out = radar_policy.decide(req)
+        self.assertEqual(out["action"]["id"], "descriptive")
+        self.assertEqual(req, before)
+        self.assertEqual(len(out["state_summary"]["coverage_issues"]), 4)
+        self.assertTrue(all(r["status"] == "unknown" for r in out["state_summary"]["coverage_issues"]))
+        req["candidates"] = [a]
+        out = radar_policy.decide(req)
+        self.assertEqual(out["action"], a)
+        self.assertNotIn("model:unknown", [r["check_id"] for r in out["state_summary"]["candidate_scores"][0]["checks"]])
+
+    def test_coverage_tolerance_never_swallows_invalid_contracts(self):
+        mutations = [lambda r: r["checks"].append(copy.deepcopy(r["checks"][0])),
+                     lambda r: r["candidates"][0].update(kind="illegal_graph_tool"),
+                     lambda r: r["candidates"][0]["covers"].append(r["candidates"][0]["covers"][0]),
+                     lambda r: r["candidates"][0]["expected_information"].append(copy.deepcopy(r["candidates"][0]["expected_information"][0]))]
+        for mutate in mutations:
+            req = request(); mutate(req)
+            with self.assertRaises(ValueError): radar_policy.decide(req)
+
+    def test_visible_correction_read_precedes_prior_and_zero_estimate(self):
+        req = self.reading_request(); before = copy.deepcopy(req)
+        out = radar_policy.decide(req)
+        self.assertEqual(out["action"]["id"], "read-visible-update")
+        self.assertEqual(out["state_summary"]["candidate_scores"][0]["expected_contribution"], 0)
+        self.assertEqual(out["state_summary"]["candidate_scores"][0]["reading_priority"], 1)
+        self.assertEqual(req, before)
+        req["reading_manifest"][0]["priority"] = "normal"
+        req["candidates"] = req["candidates"][:1]
+        self.assertEqual(radar_policy.decide(req)["decision"], "continue")
+        req["reading_manifest"][0]["basis"]["reference_ids"] = ["hidden-answer"]
+        with self.assertRaisesRegex(ValueError, "visible sources"): radar_policy.decide(req)
+
+    def test_unread_is_not_complete_even_when_checks_passed(self):
+        req = self.reading_request()
+        req["checks"][0].update(status="passed", evidence_ids=["visible-source-link"])
+        self.assertEqual(radar_policy.decide(req)["decision"], "continue")
+        req["candidates"] = []
+        out = radar_policy.decide(req)
+        self.assertEqual(out["decision"], "insufficient")
+        self.assertEqual(len(out["state_summary"]["unmet_reading"]), 1)
+        req["reading_manifest"][0]["status"] = "unavailable"
+        self.assertEqual(radar_policy.decide(req)["decision"], "insufficient")
+        req["reading_manifest"][0]["status"] = "read"
+        self.assertEqual(radar_policy.decide(req)["decision"], "complete")
+
+    def test_exact_read_identity_scope_and_version_cannot_be_relaxed(self):
+        req = self.reading_request(); req["candidates"] = req["candidates"][:1]
+        original = copy.deepcopy(req["candidates"][0]); req["history"] = [receipt(original)]
+        req["candidates"][0]["id"] = "renamed"
+        self.assertEqual(radar_policy.decide(req)["state_summary"]["excluded_candidates"][0]["reason"], "already_attempted")
+        req["history"] = []
+        req["candidates"][0]["arguments"]["records"][0]["version_id"] = "future-version"
+        self.assertEqual(radar_policy.decide(req)["state_summary"]["excluded_candidates"][0]["reason"], "record_version_not_in_visible_manifest")
+        req["candidates"][0] = original
+        req["candidates"][0]["arguments"]["scope"]["is_demo"] = False
+        self.assertEqual(radar_policy.decide(req)["state_summary"]["excluded_candidates"][0]["reason"], "scope_mismatch")
+        req["candidates"][0]["arguments"]["records"][0]["label"] = "display"
+        with self.assertRaises(ValueError): radar_policy.decide(req)
+
+    def test_action_quotas_leave_other_kinds_and_pending_first(self):
+        req = self.reading_request()
+        req["action_limits"]["document_read"] = 0
+        out = radar_policy.decide(req)
+        self.assertEqual(out["action"]["kind"], "source_fetch")
+        self.assertIn({"id": "read-visible-update", "reason": "action_limit_reached"}, out["state_summary"]["excluded_candidates"])
+        req["history"] = [receipt(out["action"], status="unknown")]
+        req["action_limits"]["source_fetch"] = 1
+        self.assertEqual(radar_policy.decide(req)["reason"], "pending_execution_or_reconciliation")
+        req["history"][0]["status"] = "not_sent"
+        self.assertEqual(radar_policy.decide(req)["state_summary"]["action_attempt_counts"], {"source_fetch": 1})
+        req["max_steps"] = 1
+        self.assertEqual(radar_policy.decide(req)["reason"], "max_steps_reached")
+
+    def test_registered_fetch_does_not_bypass_input_or_permission_gates(self):
+        req = self.reading_request(); req["candidates"] = req["candidates"][1:]
+        req["capabilities"][0]["input_requirements"] = ["declared_identifiers"]
+        self.assertEqual(radar_policy.decide(req)["state_summary"]["excluded_candidates"][0]["reason"], "missing_required_input_kind")
+        req["capabilities"][0]["input_requirements"] = []
+        req["candidates"][0]["applicability"]["status"] = "ineligible"
+        self.assertEqual(radar_policy.decide(req)["decision"], "insufficient")
+
+    def test_published_additive_example_matches_formal_schema(self):
+        import jsonschema
+        schema = json.loads((ROOT / "contracts/radar-policy-v2.schema.json").read_text())
+        jsonschema.Draft202012Validator(schema).validate(self.reading_request())
+        jsonschema.Draft202012Validator(schema).validate(request())
+
+    def test_exact_read_batch_reordering_cannot_create_a_second_execution(self):
+        req = self.reading_request(); req["candidates"] = req["candidates"][:1]
+        another = copy.deepcopy(req["reading_manifest"][0]); another["source_record_id"] = "second-visible-update"
+        req["reading_manifest"].append(another)
+        req["candidates"][0]["arguments"]["records"].append({"source_record_id": another["source_record_id"], "version_id": another["version_id"]})
+        req["history"] = [receipt(copy.deepcopy(req["candidates"][0]), status="failed")]
+        req["candidates"][0]["id"] = "renamed-batch"
+        req["candidates"][0]["arguments"]["records"].reverse()
+        out = radar_policy.decide(req)
+        self.assertIsNone(out["action"])
+        self.assertEqual(out["state_summary"]["excluded_candidates"][0]["reason"], "already_attempted")
+
+    def test_host_locator_window_can_continue_same_version_but_not_repeat_first(self):
+        req = self.reading_request(); req["candidates"] = req["candidates"][:1]
+        first = copy.deepcopy(req["candidates"][0]); req["history"] = [receipt(first)]
+        req["candidates"][0]["id"] = "explicit-zero"
+        req["candidates"][0]["arguments"]["records"][0]["window_start"] = 0
+        self.assertEqual(radar_policy.decide(req)["decision"], "insufficient")
+        req["reading_manifest"][0]["status"] = "read"
+        next_window = copy.deepcopy(req["reading_manifest"][0]); next_window.update(status="unread", window_start=6000)
+        req["reading_manifest"].append(next_window)
+        req["candidates"][0]["id"] = "actual-host-locator"
+        req["candidates"][0]["arguments"]["records"][0]["window_start"] = 6000
+        out = radar_policy.decide(req)
+        self.assertEqual(out["action"]["id"], "actual-host-locator")
+        self.assertEqual(out["state_summary"]["unread_version_count"], 1)
+        self.assertEqual(out["state_summary"]["unread_window_count"], 1)
+        req["candidates"][0]["arguments"]["records"][0]["window_start"] = 1
+        self.assertEqual(radar_policy.decide(req)["decision"], "insufficient")
+        for invalid in [-1, 0.5, True]:
+            req["candidates"][0]["arguments"]["records"][0]["window_start"] = invalid
             with self.assertRaises(ValueError): radar_policy.decide(req)
 
 

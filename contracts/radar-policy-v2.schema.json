@@ -46,6 +46,14 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 400
+        },
+        "mode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "is_demo": {
+          "type": "boolean"
         }
       }
     },
@@ -202,7 +210,9 @@
               "graph_path",
               "dataset_prepare",
               "analysis_run",
-              "professional_assess"
+              "professional_assess",
+              "document_read",
+              "source_fetch"
             ]
           },
           "version": {
@@ -262,7 +272,9 @@
               "graph_path",
               "dataset_prepare",
               "analysis_run",
-              "professional_assess"
+              "professional_assess",
+              "document_read",
+              "source_fetch"
             ]
           },
           "arguments": {
@@ -275,7 +287,8 @@
               "minLength": 1,
               "maxLength": 400
             },
-            "maxItems": 64
+            "maxItems": 64,
+            "description": "Undeclared coverage IDs are preserved in raw actions and reported as unknown warnings; they confer no score or permission."
           },
           "estimated_cost": {
             "type": "object",
@@ -373,7 +386,8 @@
                   "enum": [
                     "dataset_prepare",
                     "analysis_run",
-                    "professional_assess"
+                    "professional_assess",
+                    "source_fetch"
                   ]
                 }
               }
@@ -444,6 +458,14 @@
                           "type": "string",
                           "minLength": 1,
                           "maxLength": 400
+                        },
+                        "mode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "is_demo": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -452,6 +474,109 @@
                     },
                     "parameters": {
                       "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "document_read"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "applicability"
+              ],
+              "properties": {
+                "arguments": {
+                  "type": "object",
+                  "required": [
+                    "provider",
+                    "source_id",
+                    "records",
+                    "scope"
+                  ],
+                  "properties": {
+                    "provider": {
+                      "const": "fabric"
+                    },
+                    "source_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 400
+                    },
+                    "records": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "source_record_id",
+                          "version_id"
+                        ],
+                        "properties": {
+                          "source_record_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "version_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "window_start": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "minItems": 1,
+                      "maxItems": 32,
+                      "uniqueItems": true
+                    },
+                    "scope": {
+                      "type": "object",
+                      "properties": {
+                        "direction": {
+                          "enum": [
+                            "pipeline",
+                            "research",
+                            "business",
+                            "public_health"
+                          ]
+                        },
+                        "as_of": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "mode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "is_demo": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "direction"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "estimated_cost": {
+                  "properties": {
+                    "tool_calls": {
+                      "const": 1
                     }
                   }
                 }
@@ -486,7 +611,9 @@
               "graph_path",
               "dataset_prepare",
               "analysis_run",
-              "professional_assess"
+              "professional_assess",
+              "document_read",
+              "source_fetch"
             ]
           },
           "arguments": {
@@ -685,6 +812,142 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 256
+    },
+    "reading_manifest": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_record_id",
+          "version_id",
+          "status"
+        ],
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "source_record_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "version_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "status": {
+            "enum": [
+              "read",
+              "unread",
+              "unavailable"
+            ]
+          },
+          "priority": {
+            "enum": [
+              "normal",
+              "critical"
+            ],
+            "default": "normal"
+          },
+          "reason": {
+            "enum": [
+              "correction",
+              "counterevidence",
+              "scope"
+            ],
+            "default": "scope"
+          },
+          "covers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "maxItems": 64
+          },
+          "basis": {
+            "type": "object",
+            "required": [
+              "kind",
+              "reference_ids"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "visible_source_relation",
+                  "observed_gap",
+                  "declared_scope"
+                ]
+              },
+              "reference_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                },
+                "minItems": 1,
+                "maxItems": 256,
+                "uniqueItems": true
+              }
+            },
+            "description": "Host-only visible basis. Source relations refer to currently visible record/evidence IDs; observed gaps to declared checks; scope to checks or question_id. Never evaluator targets."
+          },
+          "window_start": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Unicode offset from a persisted host end/real Fabric locator only. A window is not a new source version or study."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "priority"
+              ],
+              "properties": {
+                "priority": {
+                  "const": "critical"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "basis"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "action_limits": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "document_search",
+          "entity_relations",
+          "graph_neighbors",
+          "graph_path",
+          "dataset_prepare",
+          "analysis_run",
+          "professional_assess",
+          "document_read",
+          "source_fetch"
+        ]
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 256
+      },
+      "description": "Per-kind maximum attempted actions, including failed/not_sent; does not enlarge host max_steps or unified budget."
     }
   }
 }

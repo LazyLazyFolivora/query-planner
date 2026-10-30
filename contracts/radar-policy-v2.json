@@ -2,7 +2,7 @@
   "schema_version": "query-planner.external.v2",
   "entrypoint": "radar_policy.py:decide(dict)->dict",
   "schema": "radar-policy-v2.schema.json",
-  "method_version": "kdd-information-gain-1.0",
+  "method_version": "kdd-information-gain-1.1",
   "notes": [
     "v1 and the original graph/Radar baselines remain unchanged.",
     "Expected information is a prior, never observed evidence.",
@@ -11,7 +11,10 @@
     "The host owns execution, permission, ledger, stable operation IDs and recovery.",
     "complete certifies supplied observable checks only, never scientific validity or business value.",
     "Capability version and versioned input references are part of semantic deduplication.",
-    "coverage_cost_baseline_v1 is a separately named same-action-space comparator, not the original baseline."
+    "coverage_cost_baseline_v1 is a separately named same-action-space comparator, not the original baseline.",
+    "Optional reading_manifest/action_limits and document_read/source_fetch are compatible v2 additions; host validates current scope and authorization.",
+    "Unknown coverage decoration remains in raw actions/receipts and becomes state_summary.coverage_issues; duplicate checks, malformed actions and illegal scope/version are not downgraded.",
+    "Visible critical correction/counterevidence reads precede heuristic gain. Unread declared records prevent complete; absent/failed legal reads leave explicit unmet_reading limitations."
   ],
   "example": {
     "schema_version": "query-planner.external.v2",
@@ -138,5 +141,6 @@
       }
     },
     "max_steps": 12
-  }
+  },
+  "stop_version": "observed_checks_reading_v2"
 }

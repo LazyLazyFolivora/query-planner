@@ -1,0 +1,144 @@
+{
+  "schema_version": "query-planner.external.v2",
+  "question_id": "public-example",
+  "question": "Within the declared sample, distinguish orders, corrections, recognized revenue and cash receipts.",
+  "direction": "business",
+  "scope": {
+    "direction": "business",
+    "as_of": "2026-10-31T00:00:00Z",
+    "mode": "as_of",
+    "is_demo": true
+  },
+  "checks": [
+    {
+      "id": "business:corrections",
+      "status": "unknown",
+      "importance": 1,
+      "required": true,
+      "missing_inputs": [
+        "current visible correction text"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "visible-source-link"
+    }
+  ],
+  "artifacts": [],
+  "capabilities": [
+    {
+      "id": "fabric:fetch:sec_companyfacts",
+      "kind": "source_fetch",
+      "version": "host-adapter-v1",
+      "directions": [
+        "business"
+      ],
+      "input_requirements": []
+    }
+  ],
+  "reading_manifest": [
+    {
+      "source_id": "external_archive",
+      "source_record_id": "visible-order-update",
+      "version_id": "sha256:example-version",
+      "status": "unread",
+      "priority": "critical",
+      "reason": "correction",
+      "covers": [
+        "business:corrections"
+      ],
+      "basis": {
+        "kind": "visible_source_relation",
+        "reference_ids": [
+          "visible-source-link"
+        ]
+      }
+    }
+  ],
+  "action_limits": {
+    "document_read": 8,
+    "document_search": 4,
+    "source_fetch": 2,
+    "professional_assess": 2
+  },
+  "candidates": [
+    {
+      "id": "read-visible-update",
+      "kind": "document_read",
+      "arguments": {
+        "provider": "fabric",
+        "source_id": "external_archive",
+        "records": [
+          {
+            "source_record_id": "visible-order-update",
+            "version_id": "sha256:example-version"
+          }
+        ],
+        "scope": {
+          "direction": "business",
+          "as_of": "2026-10-31T00:00:00Z",
+          "mode": "as_of",
+          "is_demo": true
+        }
+      },
+      "covers": [
+        "business:corrections"
+      ],
+      "estimated_cost": {
+        "tool_calls": 1
+      },
+      "applicability": {
+        "status": "eligible",
+        "scope_match": 1
+      },
+      "expected_information": [
+        {
+          "check_id": "business:corrections",
+          "probability": 0,
+          "impact": 1
+        }
+      ]
+    },
+    {
+      "id": "fetch-visible-company",
+      "kind": "source_fetch",
+      "capability_id": "fabric:fetch:sec_companyfacts",
+      "arguments": {
+        "capability_id": "fabric:fetch:sec_companyfacts",
+        "capability_version": "host-adapter-v1",
+        "input_refs": [],
+        "scope": {
+          "direction": "business",
+          "as_of": "2026-10-31T00:00:00Z",
+          "mode": "as_of",
+          "is_demo": true
+        },
+        "parameters": {
+          "source_id": "sec_companyfacts",
+          "company_id": "example-visible-identifier"
+        }
+      },
+      "covers": [
+        "business:corrections"
+      ],
+      "estimated_cost": {
+        "tool_calls": 1
+      },
+      "applicability": {
+        "status": "eligible",
+        "scope_match": 1
+      }
+    }
+  ],
+  "history": [],
+  "budget": {
+    "limits": {
+      "tool_calls": 16
+    },
+    "remaining": {
+      "tool_calls": 16
+    }
+  },
+  "max_steps": 24
+}

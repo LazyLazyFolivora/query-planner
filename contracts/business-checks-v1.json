@@ -1,0 +1,47 @@
+{
+  "schema_version": "query-planner.business-checks.v1",
+  "purpose": "Optional host check vocabulary, not default requirements or gold outcomes. Select only applicable checks and bind passed status to real current evidence/artifacts.",
+  "directions": {
+    "public_health": [
+      "warning_judgment",
+      "independent_confirmation",
+      "competing_hypotheses",
+      "counterevidence",
+      "count_revision",
+      "pathogen_uncertainty",
+      "transmission_uncertainty"
+    ],
+    "business": [
+      "orders",
+      "corrections",
+      "comparable_periods",
+      "revenue_recognition",
+      "cash_receipts",
+      "capacity_utilization",
+      "sample_scope"
+    ],
+    "research": [
+      "study_design",
+      "endpoint_scope",
+      "corrections",
+      "counterevidence",
+      "safety",
+      "regulatory_status",
+      "population_scope"
+    ],
+    "pipeline": [
+      "program_identity",
+      "development_stage",
+      "source_independence",
+      "corrections",
+      "counterevidence",
+      "milestone_uncertainty"
+    ]
+  },
+  "public_health_notes": [
+    "warning_judgment and transmission_uncertainty are distinct judgement endpoints, not official-announcement-only requirements.",
+    "Rumor/hypothesis support, counterevidence and source independence are observations; rumor visibility is not confirmation.",
+    "Deletion, silence or a denial alone cannot establish that risk is ruled out."
+  ],
+  "id_format": "<direction>:<entry>"
+}

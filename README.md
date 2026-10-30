@@ -83,10 +83,46 @@ ID/版本、资格与预计费用；当前输入不齐、范围不符或能力�
 
 `decide_kdd(request, selector="coverage_cost_baseline_v1")` 提供单独命名的同候选空间
 覆盖/成本对照，不冒充原 baseline。两种方法都保持 `heuristic_untrained`，没有下载模型
-或训练权重。方法版本 `kdd-information-gain-1.0` 与代码内容 hash 同时返回。
-停止方法如实记录为 `observed_checks_v1`：先处理待对账回执，再检查真实观察覆盖、步数、可执行候选和信息收益；它不是学习得到的停止模型。
+或训练权重。方法版本 `kdd-information-gain-1.1` 与代码内容 hash 同时返回。
+停止方法如实记录为 `observed_checks_reading_v2`：先处理待对账回执，再检查真实观察覆盖及未读材料、步数、可执行候选和信息收益；它不是学习得到的停止模型。
 所有执行、权限、许可、硬预算、账本和恢复由宿主负责；不确定回执总是先对账。
 `complete` 仅指宿主声明的观察检查已满足，科学有效性、业务价值与人工采用分别评估。
+
+### 可见材料补读与主动补采（2026-10-31）
+
+完整请求见 [`radar-policy-v2-reading-fetch.example.json`](contracts/radar-policy-v2-reading-fetch.example.json)。
+该示例是合成契约资料，没有隐藏答案、凭据或实际执行回执。新增能力不改变 `external.v1` 或原 baseline。
+
+`reading_manifest` 只描述当前权限与时点内可见的 `(source_id, source_record_id, version_id)`，
+状态为 `read / unread / unavailable`。宿主从已公开更正关联、当前分析缺口或声明研究范围构造它；
+不得读取评测 oracle 或把人工必读答案塞入。`critical` 必须给 `basis.kind/reference_ids`：
+`visible_source_relation` 引用当前 evidence/manifest record，`observed_gap` 引用声明 check，
+`declared_scope` 引用 check 或 `question_id`。策略校验引用存在，来源关系的真实性由宿主验证。
+
+`document_read` 是一次 Fabric 精确版本批量请求（1–32 个 records，预计 `tool_calls=1`）。
+参数严格为 `provider/source_id/records/scope`；record 必有 `source_record_id/version_id`，可带 `window_start`（Unicode 整数偏移 >=0）。
+候选必须在 manifest 的同版本/同窗口中且仍为 unread、适用性 eligible、方向/时点/mode/is_demo 与请求一致。
+合法 critical 补读优先于先验分数；普通未读点查得到显式 `visible_reading_floor`，不是伪造的观测收益。
+可选窗口只能由宿主从已保存 end/真实 Fabric locator 产生，模型不能编坐标；省略与 0 为同一首窗，后续窗口参与去重。
+`unread_window_count` 与 `unread_version_count` 分开统计，续读片段不得算新研究。
+未读或 unavailable 项保留 `unmet_reading`，阻止仅凭已有检查完成就返回 complete；
+预算不足、达到步数或没有合法动作仍如实不足，由宿主生成带限制的可核草稿。
+
+`source_fetch` 使用现有 capability 形状：注册 ID/版本、input_refs、scope、parameters，
+例如 Fabric 已开放的受支持 source fetch。它不是任意 URL 请求或隐藏 Agent。
+宿主负责服务许可、参数白名单、固定操作 ID、HTTP/后台任务回执与采用结果。
+异步提交不等于材料已读；prepared/sent/unknown/unconfirmed 必须先对账，不能换 ID 再发。
+临时 WeKnora 与图谱继续使用现有动作；不合法 demo/权限/版本候选不能变成 eligible。
+
+可选 `action_limits` 给每种动作独立的最大尝试数（包括 failed/not_sent），避免一种动作耗尽
+所有步骤；宿主的 max_steps、真实统一预算继续优先。这里不提高任何预算或默认常量。
+只有候选 covers/expected_information 及回执 check_updates/observed_information 中的未知
+coverage ID 降为 `coverage_issues` 与 warning；原动作/回执不改，未知标签没有奖励。
+重复 checks/updates、非法工具、错误结构与 scope/version gate 不会被吞掉。
+
+[`business-checks-v1.json`](contracts/business-checks-v1.json) 提供可选四方向词表；宿主按问题适用性选取，
+不强制每题执行所有方法。公卫风险判断与传播判断独立，保留假设支持、反证和来源独立性；
+传言、否认或删帖本身不能当结论。商业区分订单、更正、可比期间、收入确认、现金与利用率。
 
 ## 一、七个步骤 × 七个策略接口
 
