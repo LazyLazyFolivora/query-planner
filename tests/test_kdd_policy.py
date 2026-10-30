@@ -102,6 +102,18 @@ class KDDRoutingTests(unittest.TestCase):
             self.assertEqual(out["decision"], "insufficient")
             self.assertEqual(out["state_summary"]["excluded_candidates"][0]["reason"], "already_attempted")
 
+    def test_reference_metadata_cannot_bypass_completed_action_deduplication(self):
+        req = request(); req["candidates"] = [req["candidates"][1]]
+        original = copy.deepcopy(req["candidates"][0])
+        req["history"] = [receipt(original)]
+        req["candidates"][0]["id"] = "new-id-with-display-label"
+        req["candidates"][0]["arguments"]["input_refs"][0]["label"] = "renamed display only"
+        out = radar_policy.decide(req)
+        self.assertEqual(out["decision"], "insufficient")
+        self.assertIsNone(out["action"])
+        self.assertEqual(out["state_summary"]["excluded_candidates"],
+                         [{"id": "new-id-with-display-label", "reason": "already_attempted"}])
+
     def test_observed_support_required_and_complete_is_only_check_coverage(self):
         req = request()
         for c in req["checks"]: c["status"] = "passed"

@@ -56,11 +56,13 @@ def _refs(value, name):
 def semantic_key(kind, arguments):
     if kind not in KINDS or not isinstance(arguments, dict):
         raise ValueError("invalid KDD action kind or arguments")
-    # References are a set; reordered equivalent input versions cannot bypass receipts.
+    # Reference identity is only (id, version). Ordering or optional display
+    # metadata must never turn an already attempted operation into a new one.
     normalized = _canonical_arguments(arguments)
     if "input_refs" in normalized:
-        _refs(normalized["input_refs"], "arguments.input_refs")
-        normalized["input_refs"] = sorted(normalized["input_refs"], key=lambda r: (r["id"], r["version"]))
+        references = _refs(normalized["input_refs"], "arguments.input_refs")
+        normalized["input_refs"] = [{"id": identity, "version": version}
+                                    for identity, version in sorted(references)]
     raw = json.dumps([kind, normalized], sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
     if len(raw.encode()) > 16000:
         raise ValueError("action arguments exceed 16000 bytes")

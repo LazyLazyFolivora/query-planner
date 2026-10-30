@@ -423,7 +423,9 @@
                             "minLength": 1,
                             "maxLength": 400
                           }
-                        }
+                        },
+                        "additionalProperties": true,
+                        "description": "Only id and version define input identity. Extra fields are metadata and cannot change action deduplication."
                       },
                       "maxItems": 256
                     },
