@@ -1,0 +1,125 @@
+{
+  "schema_version": "query-planner.external.v2",
+  "question": "Inspect the authorized collection and state remaining evidence limitations.",
+  "direction": "research",
+  "scope": {
+    "direction": "research",
+    "mode": "current",
+    "as_of": "2026-10-01T00:00:00Z",
+    "is_demo": true
+  },
+  "evidence": [
+    {
+      "id": "seen-document-1"
+    }
+  ],
+  "artifacts": [],
+  "capabilities": [],
+  "checks": [
+    {
+      "id": "source_scope",
+      "status": "unknown",
+      "importance": 1,
+      "required": true
+    }
+  ],
+  "reading_manifest": [],
+  "action_limits": {
+    "document_search": 8
+  },
+  "candidates": [
+    {
+      "id": "catalog-page-2",
+      "kind": "document_search",
+      "arguments": {
+        "provider": "fabric",
+        "source_id": "fixture-documents",
+        "terms": [],
+        "catalog_discovery": true,
+        "limit": 8,
+        "mode": "current",
+        "as_of": "2026-10-01T00:00:00Z",
+        "is_demo": true,
+        "scope": {
+          "direction": "research",
+          "mode": "current",
+          "as_of": "2026-10-01T00:00:00Z",
+          "is_demo": true
+        },
+        "phase": "followup",
+        "index": 1,
+        "plan": {
+          "source_id": "fixture-documents",
+          "terms": [],
+          "reason": "Synthetic contract fixture: actual empty alternatives were reconciled by host."
+        },
+        "cursor": "opaque-provider-cursor-fixture-page-2",
+        "previous_action_id": "catalog-page-1",
+        "page_number": 2,
+        "max_seq": 42
+      },
+      "covers": [
+        "source_scope"
+      ],
+      "applicability": {
+        "status": "eligible",
+        "scope_match": 1,
+        "reason": "Only host-returned cursor from the completed preceding page."
+      },
+      "estimated_cost": {
+        "tool_calls": 1
+      }
+    }
+  ],
+  "history": [
+    {
+      "action_id": "catalog-page-1",
+      "kind": "document_search",
+      "arguments": {
+        "provider": "fabric",
+        "source_id": "fixture-documents",
+        "terms": [],
+        "catalog_discovery": true,
+        "limit": 8,
+        "mode": "current",
+        "as_of": "2026-10-01T00:00:00Z",
+        "is_demo": true,
+        "scope": {
+          "direction": "research",
+          "mode": "current",
+          "as_of": "2026-10-01T00:00:00Z",
+          "is_demo": true
+        },
+        "phase": "initial",
+        "index": 0,
+        "plan": {
+          "source_id": "fixture-documents",
+          "terms": [],
+          "reason": "Synthetic contract fixture: actual empty alternatives were reconciled by host."
+        }
+      },
+      "status": "completed",
+      "new_evidence_ids": [
+        "seen-document-1"
+      ],
+      "actual_cost": {
+        "tool_calls": 1
+      },
+      "pagination": {
+        "has_more": true,
+        "next_cursor": "opaque-provider-cursor-fixture-page-2",
+        "max_seq": 42,
+        "page_number": 1
+      }
+    }
+  ],
+  "budget": {
+    "limits": {
+      "tool_calls": 16
+    },
+    "remaining": {
+      "tool_calls": 15
+    }
+  },
+  "max_steps": 32
+}

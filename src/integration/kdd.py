@@ -14,10 +14,10 @@ import math
 from .external import DIMENSIONS, HISTORY_STATUSES, _canonical_arguments, _list, _number, _text
 
 SCHEMA_VERSION = "query-planner.external.v2"
-METHOD_VERSION = "kdd-information-gain-1.2"
+METHOD_VERSION = "kdd-information-gain-1.3"
 # Pending receipts precede every stop; visible unread obligations prevent a
 # coverage-only completion. A stop never certifies scientific/business validity.
-STOP_VERSION = "observed_checks_reading_v2"
+STOP_VERSION = "observed_checks_reading_pages_v3"
 DIRECTIONS = {"pipeline", "research", "business", "public_health"}
 RETRIEVAL_KINDS = {"document_search", "document_read", "entity_relations", "graph_neighbors", "graph_path"}
 CAPABILITY_KINDS = {"dataset_prepare", "analysis_run", "professional_assess", "source_fetch"}
@@ -116,13 +116,117 @@ def _catalog_identity(args):
     return {"provider": "fabric", "source_id": source, "catalog_discovery": True, "scope": scope}
 
 
+
+_PAGE_ARGUMENTS = {"cursor", "previous_action_id", "page_number", "max_seq"}
+
+
+def _search_binding(args):
+    """Public query/scope binding; cursor authentication and permissions stay at the host."""
+    required = {"provider", "source_id", "terms", "limit", "mode", "as_of", "is_demo", "scope"}
+    if not required.issubset(args) or args.get("provider") != "fabric" or "query" in args:
+        raise ValueError("paginated search requires explicit Fabric terms, limit and complete scope; no query")
+    _text(args["source_id"], "search.source_id", 400)
+    for key in ("mode", "as_of"):
+        _text(args[key], "search." + key, 100)
+    if type(args["is_demo"]) is not bool or type(args["limit"]) is not int or not 1 <= args["limit"] <= 20:
+        raise ValueError("paginated search requires boolean is_demo and integer limit in [1, 20]")
+    scope = args["scope"]
+    if (not isinstance(scope, dict) or set(scope) != {"direction", "mode", "as_of", "is_demo"}
+            or scope.get("direction") not in DIRECTIONS or type(scope["is_demo"]) is not bool
+            or any(scope[key] != args[key] for key in ("mode", "as_of", "is_demo"))):
+        raise ValueError("paginated search requires matching explicit flat and nested scope")
+    terms = _ids(args["terms"], "search.terms", 3)
+    catalog = args.get("catalog_discovery", False)
+    if type(catalog) is not bool or (bool(terms) if catalog else not terms):
+        raise ValueError("empty terms require catalog_discovery=true; normal Fabric search requires 1-3 terms")
+    if any(not 2 <= len(term.strip()) <= 120 for term in terms):
+        raise ValueError("Fabric terms require 2-120 characters")
+    # Match the actual provider binding: terms are strip/sorted/set, not casefolded.
+    # Display ID, reason and host index never identify a page.
+    return {"provider": "fabric", "source_id": args["source_id"], "terms": sorted({term.strip() for term in terms}),
+            "limit": args["limit"], "scope": scope, "catalog_discovery": catalog}
+
+
+def _continuation_identity(args):
+    allowed = {"provider", "source_id", "terms", "limit", "mode", "as_of", "is_demo", "scope", "catalog_discovery", "phase", "index", "plan"} | _PAGE_ARGUMENTS
+    if not _PAGE_ARGUMENTS.issubset(args) or set(args) - allowed:
+        raise ValueError("continuation requires cursor/previous_action_id/page_number/max_seq only with the declared search fields")
+    binding = _search_binding(args)
+    _text(args["cursor"], "cursor", 4096)
+    _text(args["previous_action_id"], "previous_action_id", 200)
+    if type(args["page_number"]) is not int or not 2 <= args["page_number"] <= 8:
+        raise ValueError("continuation page_number must be an integer in [2, 8]")
+    if type(args["max_seq"]) is not int or args["max_seq"] < 0:
+        raise ValueError("continuation max_seq must be a nonnegative integer")
+    if "phase" in args and args["phase"] not in {"initial", "followup"}:
+        raise ValueError("invalid continuation host phase")
+    if "index" in args:
+        _number(args["index"], "continuation.index", 256)
+    if "plan" in args:
+        plan = args["plan"]
+        if (not isinstance(plan, dict) or plan.get("source_id") != args["source_id"]
+                or plan.get("terms") != args["terms"]):
+            raise ValueError("continuation host plan must preserve source and terms")
+    return {**binding, "cursor": args["cursor"]}
+
+
+def _pagination(entry):
+    if "pagination" not in entry:
+        return None
+    page = entry["pagination"]
+    if (entry.get("kind") != "document_search" or entry.get("status") != "completed"
+            or not isinstance(page, dict) or set(page) != {"has_more", "next_cursor", "max_seq", "page_number"}):
+        raise ValueError("pagination is an exact completed Fabric search receipt")
+    _search_binding(entry["arguments"])
+    if (type(page["has_more"]) is not bool or type(page["max_seq"]) is not int or page["max_seq"] < 0
+            or type(page["page_number"]) is not int or not 1 <= page["page_number"] <= 8
+            or page["page_number"] != entry["arguments"].get("page_number", 1)):
+        raise ValueError("invalid search pagination receipt")
+    if page["has_more"]:
+        _text(page["next_cursor"], "pagination.next_cursor", 4096)
+    elif page["next_cursor"] is not None:
+        raise ValueError("exhausted search page must have next_cursor=null")
+    if "max_seq" in entry["arguments"] and entry["arguments"]["max_seq"] != page["max_seq"]:
+        raise ValueError("pagination changed the frozen max_seq")
+    return page
+
+
+def _continuation_reason(args, by_id):
+    previous = by_id.get(args["previous_action_id"])
+    if previous is None or previous.get("status") != "completed" or previous.get("kind") != "document_search":
+        return "missing_completed_previous_page"
+    page = previous.get("pagination")
+    if not page or not page["has_more"]:
+        return "previous_page_has_no_continuation"
+    if (page["next_cursor"] != args["cursor"] or page["max_seq"] != args["max_seq"]
+            or page["page_number"] + 1 != args["page_number"]
+            or _search_binding(previous["arguments"]) != _search_binding(args)):
+        return "continuation_receipt_binding_mismatch"
+    return None
+
+
+def _incomplete_search_chains(history):
+    # Count unresolved query chains only, never infer a number of unseen pages or records.
+    continued = {entry["arguments"]["previous_action_id"] for entry in history
+                 if entry.get("status") == "completed" and entry.get("pagination")
+                 and entry.get("kind") == "document_search" and "cursor" in entry["arguments"]}
+    return [{"previous_action_id": entry["action_id"], "source_id": entry["arguments"]["source_id"],
+             "page_number": entry["pagination"]["page_number"], "max_seq": entry["pagination"]["max_seq"],
+             "next_cursor_sha256": hashlib.sha256(entry["pagination"]["next_cursor"].encode()).hexdigest(),
+             "has_more": True, "qualification": "uncompleted_search_chain_not_unseen_page_or_record_count"}
+            for entry in history if entry.get("pagination", {}).get("has_more")
+            and entry["action_id"] not in continued]
+
+
 def semantic_key(kind, arguments):
     if kind not in KINDS or not isinstance(arguments, dict):
         raise ValueError("invalid KDD action kind or arguments")
     # Reference identity is only (id, version). Ordering or optional display
     # metadata must never turn an already attempted operation into a new one.
     normalized = _canonical_arguments(arguments)
-    if kind == "document_search" and "catalog_discovery" in arguments:
+    if kind == "document_search" and _PAGE_ARGUMENTS.intersection(arguments):
+        normalized = _continuation_identity(arguments)
+    elif kind == "document_search" and "catalog_discovery" in arguments:
         if type(arguments["catalog_discovery"]) is not bool:
             raise ValueError("catalog_discovery must be boolean")
         if arguments["catalog_discovery"]:
@@ -258,12 +362,24 @@ def _validate(request):
         raise ValueError("max_steps must be positive")
     history = _objects(request.get("history", []), "history", 256)
     attempted, history_ids, pending, outcomes, attempt_counts = set(), set(), [], [], {}
+    history_by_id, search_phase_counts = {}, {}
     for entry in history:
         aid = _text(entry.get("action_id"), "history.action_id", 200)
         if aid in history_ids or entry.get("status") not in HISTORY_STATUSES:
             raise ValueError("one latest valid receipt per action_id required")
         history_ids.add(aid)
         attempted.add(semantic_key(entry.get("kind"), entry.get("arguments")))
+        if entry["kind"] == "document_search":
+            if _PAGE_ARGUMENTS.intersection(entry["arguments"]):
+                mismatch = _continuation_reason(entry["arguments"], history_by_id)
+                if mismatch:
+                    raise ValueError("history continuation: " + mismatch)
+            _pagination(entry)
+            phase = str(entry["arguments"].get("phase", "unspecified"))
+            search_phase_counts[phase] = search_phase_counts.get(phase, 0) + 1
+        elif "pagination" in entry:
+            raise ValueError("pagination only belongs to document_search")
+        history_by_id[aid] = entry
         attempt_counts[entry["kind"]] = attempt_counts.get(entry["kind"], 0) + 1
         new_ids = _ids(entry.get("new_evidence_ids", []), "new_evidence_ids", 256)
         new_refs = _refs(entry.get("new_artifact_refs", []), "new_artifact_refs")
@@ -336,7 +452,18 @@ def _validate(request):
         if kind == "document_search":
             if args.get("provider") not in {"fabric", "weknora"} or costs.get("tool_calls") != 1:
                 raise ValueError("document_search requires one fabric/weknora query with tool_calls=1")
-            if args.get("catalog_discovery") is True:
+            if _PAGE_ARGUMENTS.intersection(args):
+                # The pure entrypoint must enforce the same complete request scope
+                # as the schema; absent task fields cannot silently waive binding.
+                if (not {"direction", "mode", "as_of", "is_demo"}.issubset(scope)
+                        or type(scope["is_demo"]) is not bool):
+                    raise ValueError("continuation requires the complete fixed request scope")
+                if not _scope_matches(args["scope"], scope, direction):
+                    reason = reason or "scope_mismatch"
+                if "applicability" not in raw:
+                    reason = reason or "missing_applicability"
+                reason = reason or _continuation_reason(args, history_by_id)
+            elif args.get("catalog_discovery") is True:
                 # Shape and first-page identity were validated by semantic_key.
                 # The host alone unlocks this after actual empty language alternatives,
                 # authorizes the source, performs the request and charges its receipt.
@@ -423,11 +550,13 @@ def _validate(request):
         if reason:
             excluded.append({"id": aid, "reason": reason})
         else:
-            candidates.append({"action": raw, "expected": expected, "scope_match": match, "prior_source": prior_source, "reading": reading})
+            candidates.append({"action": raw, "expected": expected, "scope_match": match, "prior_source": prior_source, "reading": reading,
+                               "continuation": kind == "document_search" and "cursor" in args})
     return dict(checks=checks, required=required, candidates=candidates, excluded=excluded, warnings=warnings,
                 remaining=remaining, pending=pending, outcomes=outcomes, history=history, max_steps=max_steps,
                 evidence_count=len(evidence), artifact_count=len(artifacts), coverage_issues=coverage_issues,
-                reading_manifest=list(manifest.values()), action_limits=action_limits, attempt_counts=attempt_counts)
+                reading_manifest=list(manifest.values()), action_limits=action_limits, attempt_counts=attempt_counts,
+                incomplete_search_chains=_incomplete_search_chains(history), search_phase_counts=search_phase_counts)
 
 
 def _score(candidate, state, selector):
@@ -454,10 +583,12 @@ def _score(candidate, state, selector):
     # when an untrained model estimates zero coverage gain. This is a routing
     # obligation, not measured gain or a hidden evaluator's must-read list.
     reading_floor = min(1.0, 0.25 * len(candidate["reading"])) * candidate["scope_match"]
-    score = max(score, reading_floor / (1 + pressure))
+    page_floor = 0.25 * candidate["scope_match"] if candidate["continuation"] else 0.0
+    score = max(score, reading_floor / (1 + pressure), page_floor / (1 + pressure))
     return {"id": action["id"], "score": round(score, 8), "expected_contribution": round(gain, 6),
             "reading_priority": int(any(r.get("priority") == "critical" for r in candidate["reading"]) and reading_floor > 0),
             "unread_record_count": len(candidate["reading"]), "visible_reading_floor": reading_floor,
+            "visible_continuation_floor": page_floor,
             "cost_pressure": round(pressure, 6), "prior_source": candidate["prior_source"], "checks": parts}
 
 
@@ -472,12 +603,12 @@ def decide(request, *, selector="information_gain_v1", version=METHOD_VERSION):
     selected = None
     if state["pending"]:
         decision, reason = "insufficient", "pending_execution_or_reconciliation"
-    elif state["required"] and not unmet and not unread:
+    elif state["required"] and not unmet and not unread and not state["incomplete_search_chains"]:
         decision, reason = "complete", "required_observations_satisfied"
     elif len(state["history"]) >= state["max_steps"]:
         decision, reason = "insufficient", "max_steps_reached"
     elif not state["candidates"]:
-        decision, reason = "insufficient", "no_eligible_action"
+        decision, reason = "insufficient", "search_chains_incomplete" if state["incomplete_search_chains"] else "no_eligible_action"
     elif not affordable:
         decision, reason = "insufficient", "budget_exhausted"
     elif not ranked or ranked[0]["score"] <= 0:
@@ -503,4 +634,5 @@ def decide(request, *, selector="information_gain_v1", version=METHOD_VERSION):
                  "unmet_reading": copy.deepcopy(unread), "unread_window_count": len(unread),
                  "unread_version_count": len({(r["source_id"], r["source_record_id"], r["version_id"]) for r in unread}),
                  "action_limits": copy.deepcopy(state["action_limits"]),
-                 "action_attempt_counts": state["attempt_counts"], "unmet_gaps": gaps, "candidate_scores": ranked}}
+                 "action_attempt_counts": state["attempt_counts"], "search_attempt_counts_by_phase": state["search_phase_counts"],
+                  "incomplete_search_chains": state["incomplete_search_chains"], "unmet_gaps": gaps, "candidate_scores": ranked}}

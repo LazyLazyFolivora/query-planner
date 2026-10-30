@@ -617,6 +617,30 @@
                     "catalog_discovery": {
                       "const": true
                     }
+                  },
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "cursor"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "previous_action_id"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "page_number"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "max_seq"
+                        ]
+                      }
+                    ]
                   }
                 }
               }
@@ -737,6 +761,59 @@
                     }
                   },
                   "description": "One host-authorized bounded first page after its literal-language alternatives actually returned empty and the investigation has no evidence. No query/cursor/pagination. Host binds source permission, charges actual receipt and offers this once per source; complete never certifies business correctness."
+                },
+                "estimated_cost": {
+                  "required": [
+                    "tool_calls"
+                  ],
+                  "properties": {
+                    "tool_calls": {
+                      "const": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                },
+                "arguments": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "cursor"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "previous_action_id"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "page_number"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "max_seq"
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "applicability"
+              ],
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/fabricContinuationArguments"
                 },
                 "estimated_cost": {
                   "required": [
@@ -920,8 +997,73 @@
               "minimum": 0,
               "maximum": 1
             }
+          },
+          "pagination": {
+            "$ref": "#/$defs/fabricPaginationReceipt"
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "pagination"
+              ]
+            },
+            "then": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                },
+                "status": {
+                  "const": "completed"
+                },
+                "arguments": {
+                  "$ref": "#/$defs/fabricSearchBinding"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                },
+                "arguments": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "cursor"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "previous_action_id"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "page_number"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "max_seq"
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/fabricContinuationArguments"
+                }
+              }
+            }
+          }
+        ]
       },
       "maxItems": 256
     },
@@ -1161,6 +1303,313 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "required": [
+          "candidates"
+        ],
+        "properties": {
+          "candidates": {
+            "contains": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                },
+                "arguments": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "cursor"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "previous_action_id"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "page_number"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "max_seq"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "scope"
+        ],
+        "properties": {
+          "scope": {
+            "required": [
+              "direction",
+              "mode",
+              "as_of",
+              "is_demo"
+            ]
+          }
+        }
+      }
     }
-  ]
+  ],
+  "$defs": {
+    "fabricSearchBinding": {
+      "type": "object",
+      "required": [
+        "provider",
+        "source_id",
+        "terms",
+        "limit",
+        "mode",
+        "as_of",
+        "is_demo",
+        "scope"
+      ],
+      "properties": {
+        "provider": {
+          "const": "fabric"
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "catalog_discovery": {
+          "type": "boolean"
+        },
+        "terms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "minItems": 0,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "mode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "as_of": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "is_demo": {
+          "type": "boolean"
+        },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "direction": {
+              "enum": [
+                "pipeline",
+                "research",
+                "business",
+                "public_health"
+              ]
+            },
+            "as_of": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "mode": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "is_demo": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "direction",
+            "mode",
+            "as_of",
+            "is_demo"
+          ],
+          "additionalProperties": false
+        },
+        "phase": {
+          "enum": [
+            "initial",
+            "followup"
+          ]
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 256
+        },
+        "plan": {
+          "type": "object",
+          "required": [
+            "source_id",
+            "terms"
+          ],
+          "properties": {
+            "source_id": {
+              "type": "string"
+            },
+            "terms": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {}
+          }
+        }
+      },
+      "description": "Frozen first-page Fabric query binding recorded by the host with an actual pagination receipt.",
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "catalog_discovery"
+            ],
+            "properties": {
+              "catalog_discovery": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "terms": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "terms": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ],
+      "not": {
+        "required": [
+          "query"
+        ]
+      }
+    },
+    "fabricContinuationArguments": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/fabricSearchBinding"
+        },
+        {
+          "required": [
+            "cursor",
+            "previous_action_id",
+            "page_number",
+            "max_seq"
+          ],
+          "properties": {
+            "cursor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "previous_action_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "page_number": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 8
+            },
+            "max_seq": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false,
+      "description": "A host-generated continuation of a completed Fabric page. The opaque cursor, max_seq, page_number and query/scope/limit must match its actual previous receipt. Every page costs one tool call and consumes the same document_search/global budgets. It does not estimate how many pages or records remain."
+    },
+    "fabricPaginationReceipt": {
+      "type": "object",
+      "required": [
+        "has_more",
+        "next_cursor",
+        "max_seq",
+        "page_number"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "has_more": {
+          "type": "boolean"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "max_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "page_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "has_more": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "next_cursor": {
+                "type": "string"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "next_cursor": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
 }

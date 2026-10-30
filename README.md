@@ -445,3 +445,6 @@ prepared/sent/unknown/failed 不能替代 empty。宿主按固定 reading_limits
 执行和记实际 query/tool 账。Planner 不伪造空查询回执或占位 query；改 ID、index、说明或
 页长不会重扫同一来源/时点。目录结果仍只是待读候选，不是已覆盖证据。
 合成契约样例见 [`radar-policy-v2-catalog.example.json`](contracts/radar-policy-v2-catalog.example.json)。
+
+
+V2 supports bounded Fabric continuation through `contracts/radar-policy-v2-pagination.json`. Only a completed preceding page can supply its actual cursor and frozen source/query/scope/limit/max_seq. Each page consumes the existing document-search and global budgets. `incomplete_search_chains` records unresolved chains, not a count of unseen pages/documents, and prevents coverage-only completion. The selector remains `heuristic_untrained`; these synthetic contract tests do not demonstrate factual recall or business benefit. Original v1 and graph baselines are unchanged.
