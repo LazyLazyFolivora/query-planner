@@ -465,3 +465,7 @@ V2 的实际续页契约见 `contracts/radar-policy-v2-pagination.json`，当前
 示例为 `contracts/radar-policy-v2-continuation-first.example.json`，不含评测答案。
 方法仍为 `heuristic_untrained`；合约回归不证明真实关键材料召回或业务有效。
 原 `external.v1` 和图谱 baseline 的提示、顺序、范围及实现文件保持不变。
+
+### 有材料但仍有重要缺口时的目录发现
+
+新宿主可显式提供 discovery_version=bounded-required-gap-discovery-v1。只有真实搜索回执已完成、没有新采用，且仍有重要必查问题时，带 discovery_basis 的目录候选才可参与原来的评分；一次动作仍受原来源、时点、预算和去重约束。宿主负责逐个核对返回原件的固定版本已读，并检查未读材料和未完成页链；策略仅核其收到的历史、问题及范围，不能把零增量计数当作原件证明。旧请求不带此字段时仍要求没有证据。初查、目录和图谱是否应该提出由宿主决定，本次没有修改评分或停止算法、原 v1 接口与 baseline。

@@ -376,6 +376,41 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 400
+          },
+          "discovery_basis": {
+            "type": "object",
+            "required": [
+              "version",
+              "kind",
+              "query_index",
+              "check_ids"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "version": {
+                "const": "bounded-required-gap-discovery-v1"
+              },
+              "kind": {
+                "const": "required_gap_repeat_search"
+              },
+              "query_index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255
+              },
+              "check_ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 64,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              }
+            },
+            "description": "Host basis for a bounded directory after completed zero-increment searches; returned-version identity and source permission remain host checks."
           }
         },
         "allOf": [
@@ -760,7 +795,7 @@
                       }
                     }
                   },
-                  "description": "One host-authorized bounded first page after its literal-language alternatives actually returned empty and the investigation has no evidence. No query/cursor/pagination. Host binds source permission, charges actual receipt and offers this once per source; complete never certifies business correctness."
+                  "description": "One host-authorized bounded first page. Legacy tasks require empty evidence after empty initial alternatives. The explicit discovery_version additionally permits a required-gap directory with a saved discovery_basis after known repeated versions; host enforces all initial attempts, no unread/pending pages, source/time/data scope and actual receipts. A directory is never evidence of complete coverage."
                 },
                 "estimated_cost": {
                   "required": [
@@ -1352,6 +1387,10 @@
           }
         ]
       }
+    },
+    "discovery_version": {
+      "const": "bounded-required-gap-discovery-v1",
+      "description": "Optional future host discovery policy; absent preserves the evidence-free catalog rule."
     }
   },
   "allOf": [

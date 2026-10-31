@@ -324,6 +324,50 @@ def _search_frontier(history, candidates, excluded, remaining, max_steps):
     return chains
 
 
+def _required_gap_catalog(request, action, checks, history):
+    """Check visible routing receipts; the host verifies returned original versions."""
+    basis = action.get("discovery_basis")
+    if (request.get("discovery_version") != "bounded-required-gap-discovery-v1"
+            or not isinstance(basis, dict)
+            or set(basis) != {"version", "kind", "query_index", "check_ids"}
+            or basis.get("version") != request["discovery_version"]
+            or basis.get("kind") != "required_gap_repeat_search"):
+        return False
+    index, ids = basis.get("query_index"), basis.get("check_ids")
+    if (type(index) is not int or not 0 <= index < len(history)
+            or not isinstance(ids, list) or not ids
+            or any(not isinstance(cid, str) for cid in ids) or len(ids) != len(set(ids))
+            or not set(ids) <= set(action.get("covers", []))):
+        return False
+    if any(cid not in checks or not checks[cid].get("required", True)
+           or checks[cid]["importance"] <= 0 or checks[cid]["status"] == "passed" for cid in ids):
+        return False
+    target = action["arguments"]
+    chosen = history[index]
+    if (chosen["kind"] != "document_search"
+            or chosen["arguments"].get("provider") != "fabric"
+            or chosen["arguments"].get("source_id") != target["source_id"]
+            or not chosen["arguments"].get("terms")
+            or chosen["arguments"].get("catalog_discovery")):
+        return False
+    for row in history[index:]:
+        args = row["arguments"]
+        source = args.get("source_id") or (args.get("parameters") or {}).get("source_id")
+        if source != target["source_id"]:
+            continue
+        cost = (row.get("actual_cost") or {}).get("tool_calls")
+        page = row.get("pagination") or {}
+        if row["kind"] == "document_search" and any(args.get(key) != request["scope"][key]
+                                                    for key in ("mode", "as_of", "is_demo")):
+            return False
+        if (row["status"] != "completed" or row.get("new_evidence_ids") != []
+                or type(cost) is not int or cost < 1
+                or not _scope_matches(args.get("scope"), request["scope"], request["direction"])
+                or page.get("has_more") is True or page.get("next_cursor")):
+            return False
+    return True
+
+
 def _validate(request):
     if not isinstance(request, dict) or request.get("schema_version") != SCHEMA_VERSION:
         raise ValueError("unsupported KDD schema_version")
@@ -552,7 +596,10 @@ def _validate(request):
                 if "applicability" not in raw:
                     reason = reason or "missing_applicability"
                 if evidence:
-                    reason = reason or "catalog_discovery_requires_empty_evidence"
+                    if request.get("discovery_version") != "bounded-required-gap-discovery-v1":
+                        reason = reason or "catalog_discovery_requires_empty_evidence"
+                    elif not _required_gap_catalog(request, raw, checks, history):
+                        reason = reason or "catalog_discovery_basis_invalid"
             else:
                 query, terms = args.get("query"), args.get("terms")
                 if bool(query) == bool(terms):
