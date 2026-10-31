@@ -122,7 +122,7 @@ class KDDRoutingTests(unittest.TestCase):
         req["budget"]["remaining"]["tool_calls"] = 0
         out = radar_policy.decide(req)
         self.assertEqual(out["decision"], "complete")
-        self.assertEqual(out["policy"]["stop"], "observed_checks_reading_pages_v3")
+        self.assertEqual(out["policy"]["stop"], "observed_checks_reading_pages_objects_v4")
         self.assertIn("not_scientific_or_business_approval", out["policy"]["scope"])
 
     def test_same_space_comparator_is_separately_named_and_deterministic(self):
@@ -152,7 +152,7 @@ class KDDRoutingTests(unittest.TestCase):
         out = radar_policy.decide(req)
         self.assertEqual(out["decision"], "continue")
         self.assertEqual(out["action"], req["candidates"][0])
-        self.assertEqual(out["policy"]["method_version"], "kdd-information-gain-1.3")
+        self.assertEqual(out["policy"]["method_version"], "kdd-information-gain-1.4")
         self.assertEqual(out["policy"]["training_status"], "heuristic_untrained")
         self.assertEqual(req, before)
         self.assertEqual(out["action"]["arguments"]["terms"], [])

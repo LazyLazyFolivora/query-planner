@@ -55,13 +55,13 @@ class PaginationTests(unittest.TestCase):
         req=request();args=req['candidates'][0]['arguments'];args.update(catalog_discovery=False,terms=['unrelated']);args['plan']['terms']=['unrelated']
         self.assertIsNone(radar_policy.decide(req)['action'])
 
-    def test_known_more_pages_do_not_bypass_action_or_shared_budget(self):
+    def test_continuation_uses_separate_query_allowance_and_real_shared_budget(self):
         req=request();req['checks'][0].update(status='passed',evidence_ids=['seen-document-1']);req['action_limits']['document_search']=1
-        out=radar_policy.decide(req);self.assertEqual(out['reason'],'search_chains_incomplete');self.assertEqual(out['state_summary']['excluded_candidates'][0]['reason'],'action_limit_reached')
+        out=radar_policy.decide(req);self.assertEqual(out['decision'],'continue');self.assertEqual(out['state_summary']['new_query_attempt_count'],1)
         self.assertEqual(out['state_summary']['search_attempt_counts_by_phase'],{'initial':1})
         req=request();req['budget']['remaining']['tool_calls']=0
         self.assertEqual(radar_policy.decide(req)['reason'],'budget_exhausted')
-        req=request();req['candidates']=[];self.assertEqual(radar_policy.decide(req)['reason'],'search_chains_incomplete')
+        req=request();req['candidates']=[];self.assertEqual(radar_policy.decide(req)['reason'],'continuation_candidate_required')
 
     def test_malformed_receipts_or_partial_pagination_cannot_create_candidates(self):
         for mutate in [lambda a:a.update(cursor='x',provider='weknora'),lambda a:a.update(query=None),lambda a:a.update(page_number=True),lambda a:a.update(page_number=9),lambda a:a.update(max_seq=True),lambda a:a.update(limit=2.5),lambda a:a.pop('previous_action_id')]:

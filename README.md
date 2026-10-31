@@ -447,4 +447,21 @@ prepared/sent/unknown/failed 不能替代 empty。宿主按固定 reading_limits
 合成契约样例见 [`radar-policy-v2-catalog.example.json`](contracts/radar-policy-v2-catalog.example.json)。
 
 
-V2 supports bounded Fabric continuation through `contracts/radar-policy-v2-pagination.json`. Only a completed preceding page can supply its actual cursor and frozen source/query/scope/limit/max_seq. Each page consumes the existing document-search and global budgets. `incomplete_search_chains` records unresolved chains, not a count of unseen pages/documents, and prevents coverage-only completion. The selector remains `heuristic_untrained`; these synthetic contract tests do not demonstrate factual recall or business benefit. Original v1 and graph baselines are unchanged.
+V2 的实际续页契约见 `contracts/radar-policy-v2-pagination.json`，当前方法为
+`kdd-information-gain-1.4`，停止规则为 `observed_checks_reading_pages_objects_v4`。
+有实际 `has_more=true` 回执时，合法且可负担的续页优先于新查询；每链含首页最多五页。
+`action_limits.document_search` 只计无 cursor 的首查尝试（测试配置 16），
+`document_read` 测试配置 32。续页仍逐次消费真实 `tool_calls` 和步骤，失败及未知回执也保留。
+新查询额度不是总工具额度；宿主必须分别提供当前真实预算。
+
+若宿主遗漏仍可续链的候选，策略返回 `continuation_candidate_required`，
+`action=null`、`state_summary.terminal=false`、`execution_state=awaiting_host_candidates`。
+宿主须从已保存实际回执重建授权候选再调用，不能把这个 `insufficient` 兼容枚举当成终止。
+达到五页、已尝试、预算或许可不允许时，保留未完成链和具体原因；不臆测剩余页数。
+
+`named_objects` 绑定题干原样 Unicode 区间、当前已读证据和合法候选 ID；宿主验证名字
+实际出现在已读正文。未读对象补查优先于一般评分，停止时完整保留
+`unmet_named_objects` 及无法继续原因；原 `reading_manifest` 的版本/窗口义务仍有效。
+示例为 `contracts/radar-policy-v2-continuation-first.example.json`，不含评测答案。
+方法仍为 `heuristic_untrained`；合约回归不证明真实关键材料召回或业务有效。
+原 `external.v1` 和图谱 baseline 的提示、顺序、范围及实现文件保持不变。

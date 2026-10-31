@@ -14,10 +14,11 @@ import math
 from .external import DIMENSIONS, HISTORY_STATUSES, _canonical_arguments, _list, _number, _text
 
 SCHEMA_VERSION = "query-planner.external.v2"
-METHOD_VERSION = "kdd-information-gain-1.3"
+METHOD_VERSION = "kdd-information-gain-1.4"
+MAX_PAGES_PER_CHAIN = 5
 # Pending receipts precede every stop; visible unread obligations prevent a
 # coverage-only completion. A stop never certifies scientific/business validity.
-STOP_VERSION = "observed_checks_reading_pages_v3"
+STOP_VERSION = "observed_checks_reading_pages_objects_v4"
 DIRECTIONS = {"pipeline", "research", "business", "public_health"}
 RETRIEVAL_KINDS = {"document_search", "document_read", "entity_relations", "graph_neighbors", "graph_path"}
 CAPABILITY_KINDS = {"dataset_prepare", "analysis_run", "professional_assess", "source_fetch"}
@@ -154,8 +155,8 @@ def _continuation_identity(args):
     binding = _search_binding(args)
     _text(args["cursor"], "cursor", 4096)
     _text(args["previous_action_id"], "previous_action_id", 200)
-    if type(args["page_number"]) is not int or not 2 <= args["page_number"] <= 8:
-        raise ValueError("continuation page_number must be an integer in [2, 8]")
+    if type(args["page_number"]) is not int or not 2 <= args["page_number"] <= MAX_PAGES_PER_CHAIN:
+        raise ValueError("continuation page_number must be an integer in [2, 5]")
     if type(args["max_seq"]) is not int or args["max_seq"] < 0:
         raise ValueError("continuation max_seq must be a nonnegative integer")
     if "phase" in args and args["phase"] not in {"initial", "followup"}:
@@ -179,7 +180,7 @@ def _pagination(entry):
         raise ValueError("pagination is an exact completed Fabric search receipt")
     _search_binding(entry["arguments"])
     if (type(page["has_more"]) is not bool or type(page["max_seq"]) is not int or page["max_seq"] < 0
-            or type(page["page_number"]) is not int or not 1 <= page["page_number"] <= 8
+            or type(page["page_number"]) is not int or not 1 <= page["page_number"] <= MAX_PAGES_PER_CHAIN
             or page["page_number"] != entry["arguments"].get("page_number", 1)):
         raise ValueError("invalid search pagination receipt")
     if page["has_more"]:
@@ -259,6 +260,70 @@ def _current_support(item, evidence, artifacts):
     return bool(ids or refs) and set(ids).issubset(evidence) and refs.issubset(artifacts)
 
 
+def _named_objects(request, evidence):
+    """Only visible question spans, never inferred evaluator targets or hidden IDs."""
+    rows, seen = [], set()
+    for raw in _objects(request.get("named_objects", []), "named_objects", 64):
+        row = copy.deepcopy(raw)
+        if set(row) - {"id", "name", "question_span", "status", "evidence_ids", "candidate_ids", "reason"}:
+            raise ValueError("unknown named_object field")
+        oid = _text(row.get("id"), "named_object.id", 200)
+        name = _text(row.get("name"), "named_object.name", 400)
+        span = row.get("question_span")
+        if (oid in seen or not isinstance(span, dict) or set(span) != {"start", "end"}
+                or any(type(span[k]) is not int for k in ("start", "end"))
+                or not 0 <= span["start"] < span["end"] <= len(request["question"])
+                or request["question"][span["start"]:span["end"]] != name):
+            raise ValueError("named objects require unique IDs and an exact visible question span")
+        seen.add(oid)
+        if row.get("status") not in {"read", "unread", "unavailable"}:
+            raise ValueError("invalid named_object status")
+        ids = _ids(row.get("evidence_ids", []), "named_object.evidence_ids", 256)
+        _ids(row.get("candidate_ids", []), "named_object.candidate_ids", 128)
+        if "reason" in row:
+            _text(row["reason"], "named_object.reason", 400)
+        if row["status"] == "unavailable" and not row.get("reason"):
+            raise ValueError("unavailable named object requires a reason")
+        # The host verifies that the name occurs in actually read text. An absent
+        # current evidence binding cannot be promoted to a completed obligation.
+        if row["status"] == "read" and (not ids or not set(ids) <= evidence):
+            row.update(status="unread", reason="read_without_current_evidence")
+        rows.append(row)
+    return rows
+
+
+def _search_frontier(history, candidates, excluded, remaining, max_steps):
+    """Account for actual unfinished chains without manufacturing provider actions."""
+    excluded_by_id = {item["id"]: item["reason"] for item in excluded}
+    chains = _incomplete_search_chains(history)
+    for chain in chains:
+        previous = chain["previous_action_id"]
+        attempts = [row for row in history if row["kind"] == "document_search"
+                    and row["arguments"].get("previous_action_id") == previous]
+        offered = sorted([row for row in candidates if row["kind"] == "document_search"
+                          and row["arguments"].get("previous_action_id") == previous], key=lambda row: row["id"])
+        reason = None
+        if chain["page_number"] >= MAX_PAGES_PER_CHAIN:
+            reason = "search_chain_page_limit"
+        elif attempts:
+            reason = "continuation_already_attempted"
+        elif len(history) >= max_steps:
+            reason = "max_steps_reached"
+        elif remaining.get("tool_calls", 1) < 1:
+            reason = "budget_exhausted"
+        elif offered:
+            legal = [row for row in offered if row["id"] not in excluded_by_id]
+            if not legal:
+                reason = excluded_by_id[offered[0]["id"]]
+            elif not any(all(row["estimated_cost"][d] <= remaining[d] for d in remaining) for row in legal):
+                reason = "budget_exhausted"
+        else:
+            reason = "continuation_candidate_required"
+        chain.update(max_pages_per_chain=MAX_PAGES_PER_CHAIN, candidate_ids=[r["id"] for r in offered],
+                     unavailable_reason=reason)
+    return chains
+
+
 def _validate(request):
     if not isinstance(request, dict) or request.get("schema_version") != SCHEMA_VERSION:
         raise ValueError("unsupported KDD schema_version")
@@ -277,6 +342,7 @@ def _validate(request):
     evidence = {_text(e.get("id"), "evidence.id", 400) for e in evidence_rows}
     if len(evidence) != len(evidence_rows):
         raise ValueError("evidence IDs must be unique")
+    named_objects = _named_objects(request, evidence)
     artifact_rows = _objects(request.get("artifacts", []), "artifacts", 256)
     artifact_keys = _refs(artifact_rows, "artifacts")
     artifacts = {(a["id"], a["version"]): a for a in artifact_rows}
@@ -363,6 +429,7 @@ def _validate(request):
     history = _objects(request.get("history", []), "history", 256)
     attempted, history_ids, pending, outcomes, attempt_counts = set(), set(), [], [], {}
     history_by_id, search_phase_counts = {}, {}
+    new_queries = continuations = 0
     for entry in history:
         aid = _text(entry.get("action_id"), "history.action_id", 200)
         if aid in history_ids or entry.get("status") not in HISTORY_STATUSES:
@@ -374,7 +441,13 @@ def _validate(request):
                 mismatch = _continuation_reason(entry["arguments"], history_by_id)
                 if mismatch:
                     raise ValueError("history continuation: " + mismatch)
-            _pagination(entry)
+            page = _pagination(entry)
+            if page and (not {"direction", "mode", "as_of", "is_demo"} <= set(scope)
+                         or type(scope["is_demo"]) is not bool
+                         or not _scope_matches(entry["arguments"]["scope"], scope, direction)):
+                raise ValueError("pagination history requires the complete fixed request scope")
+            continuations += "cursor" in entry["arguments"]
+            new_queries += "cursor" not in entry["arguments"]
             phase = str(entry["arguments"].get("phase", "unspecified"))
             search_phase_counts[phase] = search_phase_counts.get(phase, 0) + 1
         elif "pagination" in entry:
@@ -431,7 +504,11 @@ def _validate(request):
         covers = _ids(raw.get("covers", []), "candidate.covers")
         for cid in covers:
             coverage_id(cid, "candidate.covers:" + aid)
-        if kind in action_limits and attempt_counts.get(kind, 0) >= action_limits[kind]:
+        # The search allowance counts new first-page queries. Every continuation
+        # still consumes its real tool budget and step; its separate bound is five
+        # total pages per receipt-bound chain, including the first page.
+        counted = new_queries if kind == "document_search" else attempt_counts.get(kind, 0)
+        if kind in action_limits and not (kind == "document_search" and "cursor" in args) and counted >= action_limits[kind]:
             reason = reason or "action_limit_reached"
         costs = raw.get("estimated_cost")
         if not isinstance(costs, dict) or set(costs) - set(DIMENSIONS):
@@ -551,12 +628,17 @@ def _validate(request):
             excluded.append({"id": aid, "reason": reason})
         else:
             candidates.append({"action": raw, "expected": expected, "scope_match": match, "prior_source": prior_source, "reading": reading,
-                               "continuation": kind == "document_search" and "cursor" in args})
+                               "continuation": kind == "document_search" and "cursor" in args,
+                               "named_object_ids": [row["id"] for row in named_objects
+                                   if row["status"] != "read" and aid in row.get("candidate_ids", [])
+                                   and kind in RETRIEVAL_KINDS | {"source_fetch"}]})
     return dict(checks=checks, required=required, candidates=candidates, excluded=excluded, warnings=warnings,
                 remaining=remaining, pending=pending, outcomes=outcomes, history=history, max_steps=max_steps,
                 evidence_count=len(evidence), artifact_count=len(artifacts), coverage_issues=coverage_issues,
                 reading_manifest=list(manifest.values()), action_limits=action_limits, attempt_counts=attempt_counts,
-                incomplete_search_chains=_incomplete_search_chains(history), search_phase_counts=search_phase_counts)
+                incomplete_search_chains=_search_frontier(history, request.get("candidates", []), excluded, remaining, max_steps),
+                search_phase_counts=search_phase_counts, new_query_attempt_count=new_queries,
+                continuation_attempt_count=continuations, named_objects=named_objects)
 
 
 def _score(candidate, state, selector):
@@ -584,11 +666,14 @@ def _score(candidate, state, selector):
     # obligation, not measured gain or a hidden evaluator's must-read list.
     reading_floor = min(1.0, 0.25 * len(candidate["reading"])) * candidate["scope_match"]
     page_floor = 0.25 * candidate["scope_match"] if candidate["continuation"] else 0.0
-    score = max(score, reading_floor / (1 + pressure), page_floor / (1 + pressure))
+    named_floor = 0.25 * candidate["scope_match"] if candidate["named_object_ids"] else 0.0
+    score = max(score, reading_floor / (1 + pressure), page_floor / (1 + pressure), named_floor / (1 + pressure))
     return {"id": action["id"], "score": round(score, 8), "expected_contribution": round(gain, 6),
             "reading_priority": int(any(r.get("priority") == "critical" for r in candidate["reading"]) and reading_floor > 0),
             "unread_record_count": len(candidate["reading"]), "visible_reading_floor": reading_floor,
-            "visible_continuation_floor": page_floor,
+            "visible_continuation_floor": page_floor, "continuation_priority": int(candidate["continuation"]),
+            "named_object_priority": int(bool(candidate["named_object_ids"])),
+            "named_object_ids": candidate["named_object_ids"], "visible_named_object_floor": named_floor,
             "cost_pressure": round(pressure, 6), "prior_source": candidate["prior_source"], "checks": parts}
 
 
@@ -597,18 +682,27 @@ def decide(request, *, selector="information_gain_v1", version=METHOD_VERSION):
         raise ValueError("unsupported KDD selector")
     state = _validate(request)
     affordable = [c for c in state["candidates"] if all(c["action"]["estimated_cost"][d] <= state["remaining"][d] for d in state["remaining"])]
-    ranked = sorted([_score(c, state, selector) for c in affordable], key=lambda r: (-r["reading_priority"], -r["score"], r["id"]))
+    ranked = sorted([_score(c, state, selector) for c in affordable], key=lambda r: (-r["continuation_priority"], -r["named_object_priority"], -r["reading_priority"], -r["score"], r["id"]))
     unmet = [cid for cid in state["required"] if state["checks"][cid]["status"] != "passed"]
     unread = [row for row in state["reading_manifest"] if row["status"] != "read"]
+    unread_objects = [row for row in state["named_objects"] if row["status"] != "read"]
+    requests = [chain for chain in state["incomplete_search_chains"]
+                if chain["unavailable_reason"] == "continuation_candidate_required"]
     selected = None
     if state["pending"]:
         decision, reason = "insufficient", "pending_execution_or_reconciliation"
-    elif state["required"] and not unmet and not unread and not state["incomplete_search_chains"]:
+    elif state["required"] and not unmet and not unread and not unread_objects and not state["incomplete_search_chains"]:
         decision, reason = "complete", "required_observations_satisfied"
     elif len(state["history"]) >= state["max_steps"]:
         decision, reason = "insufficient", "max_steps_reached"
+    elif requests:
+        decision, reason = "insufficient", "continuation_candidate_required"
     elif not state["candidates"]:
-        decision, reason = "insufficient", "search_chains_incomplete" if state["incomplete_search_chains"] else "no_eligible_action"
+        reasons = {chain["unavailable_reason"] for chain in state["incomplete_search_chains"]}
+        reason = ("named_objects_unread" if unread_objects else
+                  next(iter(reasons)) if len(reasons) == 1 else
+                  "retrieval_incomplete" if reasons else "no_eligible_action")
+        decision = "insufficient"
     elif not affordable:
         decision, reason = "insufficient", "budget_exhausted"
     elif not ranked or ranked[0]["score"] <= 0:
@@ -616,6 +710,18 @@ def decide(request, *, selector="information_gain_v1", version=METHOD_VERSION):
     else:
         decision, reason = "continue", "selected_by_" + selector
         selected = next(c["action"] for c in affordable if c["action"]["id"] == ranked[0]["id"])
+    terminal = decision != "continue" and reason not in {"continuation_candidate_required", "pending_execution_or_reconciliation"}
+    execution_state = ("awaiting_host_candidates" if reason == "continuation_candidate_required" else
+                       "awaiting_receipt_reconciliation" if state["pending"] else
+                       "terminal" if terminal else "action_selected")
+    affordable_ids = {c["action"]["id"] for c in affordable}
+    excluded = {row["id"]: row["reason"] for row in state["excluded"]}
+    unread_objects = [{**row, "available_candidate_ids": sorted(set(row.get("candidate_ids", [])) & affordable_ids),
+                       "unavailable_reason": row.get("reason") or
+                       (reason if terminal or state["pending"] else
+                        None if set(row.get("candidate_ids", [])) & affordable_ids else
+                        next((excluded[c] for c in row.get("candidate_ids", []) if c in excluded), "no_legal_candidate"))}
+                      for row in unread_objects]
     gaps = [{"check_id": cid, "missing_inputs": state["checks"][cid].get("missing_inputs", []),
              "acceptable_alternatives": state["checks"][cid].get("acceptable_alternatives", []),
              "candidate_ids": [c["action"]["id"] for c in affordable if cid in c["action"].get("covers", [])]}
@@ -634,5 +740,11 @@ def decide(request, *, selector="information_gain_v1", version=METHOD_VERSION):
                  "unmet_reading": copy.deepcopy(unread), "unread_window_count": len(unread),
                  "unread_version_count": len({(r["source_id"], r["source_record_id"], r["version_id"]) for r in unread}),
                  "action_limits": copy.deepcopy(state["action_limits"]),
+                 "execution_state": execution_state, "terminal": terminal,
+                 "requested_continuations": requests if reason == "continuation_candidate_required" else [],
+                 "max_pages_per_chain": MAX_PAGES_PER_CHAIN,
+                 "new_query_attempt_count": state["new_query_attempt_count"],
+                 "continuation_attempt_count": state["continuation_attempt_count"],
+                 "unmet_named_objects": unread_objects,
                  "action_attempt_counts": state["attempt_counts"], "search_attempt_counts_by_phase": state["search_phase_counts"],
                   "incomplete_search_chains": state["incomplete_search_chains"], "unmet_gaps": gaps, "candidate_scores": ranked}}

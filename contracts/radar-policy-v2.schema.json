@@ -1257,7 +1257,101 @@
         "minimum": 0,
         "maximum": 256
       },
-      "description": "Per-kind maximum attempted actions, including failed/not_sent; does not enlarge host max_steps or unified budget."
+      "description": "Per-kind attempted actions including failed/not_sent. document_search counts new queries (no cursor); continuation still consumes real tool_calls/max_steps and is bounded by five total pages per chain."
+    },
+    "named_objects": {
+      "type": "array",
+      "maxItems": 64,
+      "description": "Host-declared objects from exact visible question spans, never hidden evaluation targets. Host verifies occurrence in actual read text.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "question_span",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "question_span": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "start",
+              "end"
+            ],
+            "properties": {
+              "start": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "description": "Unicode indices; question[start:end] must exactly equal name."
+          },
+          "status": {
+            "enum": [
+              "read",
+              "unread",
+              "unavailable"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            }
+          },
+          "candidate_ids": {
+            "type": "array",
+            "maxItems": 128,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            }
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "unavailable"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "reason"
+              ]
+            }
+          }
+        ]
+      }
     }
   },
   "allOf": [
@@ -1542,7 +1636,7 @@
             "page_number": {
               "type": "integer",
               "minimum": 2,
-              "maximum": 8
+              "maximum": 5
             },
             "max_seq": {
               "type": "integer",
@@ -1552,7 +1646,7 @@
         }
       ],
       "unevaluatedProperties": false,
-      "description": "A host-generated continuation of a completed Fabric page. The opaque cursor, max_seq, page_number and query/scope/limit must match its actual previous receipt. Every page costs one tool call and consumes the same document_search/global budgets. It does not estimate how many pages or records remain."
+      "description": "Host-supplied actual receipt-bound cursor; at most five total pages per chain. Each page consumes actual tool_calls and max_steps, but continuation does not consume the new-query document_search allowance."
     },
     "fabricPaginationReceipt": {
       "type": "object",
@@ -1582,7 +1676,7 @@
         "page_number": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 8
+          "maximum": 5
         }
       },
       "allOf": [
