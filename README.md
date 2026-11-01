@@ -12,6 +12,118 @@
 
 ---
 
+## Radar 逐步调用接口
+
+`radar_policy.py:decide(request)` 是纯 Python 策略入口，默认仅依赖
+`requirements-policy.txt` 中的 NumPy；不会读取密钥、访问网络、下载嵌入模型或执行候选动作。
+可通过 `importlib.util.spec_from_file_location` 按文件加载，不会占用宿主的 `src` 包名。
+输入/输出版本及完整样例在 [`contracts/radar-policy-v1.json`](contracts/radar-policy-v1.json)。
+
+宿主每步提供真实剩余预算、合法候选、已有证据 ID、必要取证检查及每次尝试的最新回执。
+接口复用 `HeuristicSelector.select` 和 `RuleStop.decide`：候选 `covers` 与未通过检查的交集
+进入既有 18 维动作特征，实际预计成本进入成本特征；已通过且引用现有证据的检查进入
+`observable_sufficiency_status`。没有构造假三元组或拿候选覆盖意图充当已取得证据。
+反馈更新后重新选择一项，`complete` 仅表示宿主给定的必要取证检查全部通过，不表示医学结论成立。
+缺少必要检查不能 `complete`。宿主负责权限、检索/图查询、付费模型、硬预算、持久化和恢复。
+
+`document_search` 每项仅代表一个 Fabric 或 WeKnora provider 的一次查询；
+`entity_relations` 代表已落地实体的关系种类查询，`graph_neighbors` 为邻居展开，
+`graph_path` 为路径查询。后者是否用 Cypher 由宿主执行器决定，本接口不连接 Neo4j。
+候选的 `covers` 必须指向声明的检查；预计成本未知且该维度有限额时排除该候选。
+预算省略维度只表示策略不限制该维度，宿主仍保留硬保护。未知成本不会在返回候选中改成零。
+
+`prepared/sent/unknown/unconfirmed` 回执会阻止新动作，等待宿主对账；
+`completed/failed/not_sent` 都是已尝试动作，本接口不自动重试。
+历史每个 action ID 只传最新回执；按动作种类和参数语义去重，因此换 ID 不能绕过已发送回执。
+候选按 ID 稳定排序，同一快照恢复会得到同一结果。宿主在真正派发前须先持久化选择和回执状态。
+
+`create_policy(selector="linear"|"model", stop="rule"|"model")` 可显式复用已有本地模型头，
+其中 `model` 需要调用方另装 PyTorch。外部状态编码为 `external_observations_v1`（12 维），
+动作特征也有外部语义；旧图谱状态 checkpoint 不可直接混用。没有随附训练权重，默认结果
+明确标记 `heuristic_untrained`；接通链路不等于已验证学习方法。
+
+工厂离线入口 `load_public_questions` 只读取
+`release/public/planner_questions.jsonl` 的 `task-construction-v2`，保留环境标识和预算，
+不读取隐藏目标/manifest，不接受旧出题探索轨迹，`requirement_groups` 始终为空。
+`scripts/run_public_questions.py` 使用现有 rule/feature/heuristic pipeline 重新执行检索，输出独立
+solver transitions、实际成本、输入及世界文件 SHA256。必须显式绑定 `--environment-ref`：
+
+```bash
+python scripts/run_public_questions.py --questions release/public/planner_questions.jsonl \
+  --backend primekg --world public-world.sqlite --environment-ref YOUR_PUBLIC_ENVIRONMENT \
+  --out fresh-solver-trajectories.jsonl
+```
+
+这个离线 runner 仅支持兼容 PrimeKG `edges` 表的 SQLite，以及原有 ToyKG JSON。
+要求显式 `relation_access/tool_calls` 预算；ToyKG 文段检索另需 `tokens`。
+PrimeKG 仅执行本地图操作，无模型 token 开销。`ctd_access/pubmed_access/primekg_access`
+等未映射计量返回 `unsupported_budget`，不会擅自换单位；没有声称接通这些后端。
+停止后的隐藏目标评测应由独立评测进程进行。
+
+离线验证：`python -m unittest discover -s tests -v`。
+
+## KDD 多方向路由（external.v2）
+
+`radar_policy.decide(request)` 按 `schema_version` 分派；旧 v1、原图谱 demo 和 Radar
+原 baseline 行为保留。v2 的正式请求 schema 与可直接运行的样例分别在
+[`radar-policy-v2.schema.json`](contracts/radar-policy-v2.schema.json) 和
+[`radar-policy-v2.json`](contracts/radar-policy-v2.json)。
+
+v2 在原四种取证/图动作之外支持宿主注册的 `dataset_prepare`、`analysis_run`、
+`professional_assess`。新动作须声明 capability ID/版本、方向和时间范围、输入产物
+ID/版本、资格与预计费用；当前输入不齐、范围不符或能力未注册时排除，返回具体原因。
+`capabilities.input_requirements` 是所需 `artifact.kind` 列表。缺数据时，宿主可提供
+补查候选或范围明确的替代分析；商业、公卫不会被策略强制发送到 MechEvidence。
+
+默认 `information_gain_v1` 用尚未满足检查的重要性、预计信息贡献、范围匹配以及同类
+动作已完成回执的观测收益排序，每步重新决策。回执更新使用固定强度 2 的未训练先验；
+成本用于可执行性筛选和较小的效用折扣。返回每项候选的评分组成及未满足缺口。
+`observed_information` 只有已完成且带当前证据/产物引用时可形成正收益；没有收益测量
+不会补成零。期望信息和 `covers` 永远不能将检查标记通过。
+
+`decide_kdd(request, selector="coverage_cost_baseline_v1")` 提供单独命名的同候选空间
+覆盖/成本对照，不冒充原 baseline。两种方法都保持 `heuristic_untrained`，没有下载模型
+或训练权重。方法版本 `kdd-information-gain-1.2` 与代码内容 hash 同时返回。
+停止方法如实记录为 `observed_checks_reading_v2`：先处理待对账回执，再检查真实观察覆盖及未读材料、步数、可执行候选和信息收益；它不是学习得到的停止模型。
+所有执行、权限、许可、硬预算、账本和恢复由宿主负责；不确定回执总是先对账。
+`complete` 仅指宿主声明的观察检查已满足，科学有效性、业务价值与人工采用分别评估。
+
+### 可见材料补读与主动补采（2026-10-31）
+
+完整请求见 [`radar-policy-v2-reading-fetch.example.json`](contracts/radar-policy-v2-reading-fetch.example.json)。
+该示例是合成契约资料，没有隐藏答案、凭据或实际执行回执。新增能力不改变 `external.v1` 或原 baseline。
+
+`reading_manifest` 只描述当前权限与时点内可见的 `(source_id, source_record_id, version_id)`，
+状态为 `read / unread / unavailable`。宿主从已公开更正关联、当前分析缺口或声明研究范围构造它；
+不得读取评测 oracle 或把人工必读答案塞入。`critical` 必须给 `basis.kind/reference_ids`：
+`visible_source_relation` 引用当前 evidence/manifest record，`observed_gap` 引用声明 check，
+`declared_scope` 引用 check 或 `question_id`。策略校验引用存在，来源关系的真实性由宿主验证。
+
+`document_read` 是一次 Fabric 精确版本批量请求（1–32 个 records，预计 `tool_calls=1`）。
+参数严格为 `provider/source_id/records/scope`；record 必有 `source_record_id/version_id`，可带 `window_start`（Unicode 整数偏移 >=0）。
+候选必须在 manifest 的同版本/同窗口中且仍为 unread、适用性 eligible、方向/时点/mode/is_demo 与请求一致。
+合法 critical 补读优先于先验分数；普通未读点查得到显式 `visible_reading_floor`，不是伪造的观测收益。
+可选窗口只能由宿主从已保存 end/真实 Fabric locator 产生，模型不能编坐标；省略与 0 为同一首窗，后续窗口参与去重。
+`unread_window_count` 与 `unread_version_count` 分开统计，续读片段不得算新研究。
+未读或 unavailable 项保留 `unmet_reading`，阻止仅凭已有检查完成就返回 complete；
+预算不足、达到步数或没有合法动作仍如实不足，由宿主生成带限制的可核草稿。
+
+`source_fetch` 使用现有 capability 形状：注册 ID/版本、input_refs、scope、parameters，
+例如 Fabric 已开放的受支持 source fetch。它不是任意 URL 请求或隐藏 Agent。
+宿主负责服务许可、参数白名单、固定操作 ID、HTTP/后台任务回执与采用结果。
+异步提交不等于材料已读；prepared/sent/unknown/unconfirmed 必须先对账，不能换 ID 再发。
+临时 WeKnora 与图谱继续使用现有动作；不合法 demo/权限/版本候选不能变成 eligible。
+
+可选 `action_limits` 给每种动作独立的最大尝试数（包括 failed/not_sent），避免一种动作耗尽
+所有步骤；宿主的 max_steps、真实统一预算继续优先。这里不提高任何预算或默认常量。
+只有候选 covers/expected_information 及回执 check_updates/observed_information 中的未知
+coverage ID 降为 `coverage_issues` 与 warning；原动作/回执不改，未知标签没有奖励。
+重复 checks/updates、非法工具、错误结构与 scope/version gate 不会被吞掉。
+
+[`business-checks-v1.json`](contracts/business-checks-v1.json) 提供可选四方向词表；宿主按问题适用性选取，
+不强制每题执行所有方法。公卫风险判断与传播判断独立，保留假设支持、反证和来源独立性；
+传言、否认或删帖本身不能当结论。商业区分订单、更正、可比期间、收入确认、现金与利用率。
+
 ## 一、七个步骤 × 七个策略接口
 
 ```
@@ -120,25 +232,21 @@ python run_demo.py --selectors heuristic,linear,model --quiet       # ④ 消融
 
 ## 五、当前结果
 
-**默认（全模型）**：
+2026-10-30 验证的**全规则基线**：`python run_demo.py --preset rule --quiet`。
+当前分支与原始提交 `6ef6453` 的四题输出逐字一致：
 
 | 问题 | 决策 | 停止原因 | ra | 调用 | 步 | gold | 判定 |
 |---|---|---|---|---|---|---|---|
-| q1 二甲双胍机制（可达） | complete | sufficient_evidence | 13 | 11 | 12 | 1.00 | 正确完成 |
+| q1 二甲双胍机制（可达） | complete | sufficient_evidence | 9 | 7 | 8 | 0.75 | 错误完成 |
 | q2 华法林相互作用 | complete | sufficient_evidence | 3 | 1 | 2 | 1.00 | 正确完成 |
 | q3 致癌机制（图谱中不存在） | insufficient | no_legal_action | 22 | 22 | 23 | 0.00 | 正确不足 |
-| q4 布洛芬（预算 ra=8） | insufficient | budget_exhausted | 7 | 2 | 3 | 0.00 | 正确不足 |
+| q4 布洛芬（预算 ra=8） | insufficient | budget_exhausted | 8 | 3 | 4 | 0.25 | 正确不足 |
 
-**全规则基线**（`--preset rule`）：4 题判定一致，q1 的 ra 同为 13。
+q1 暴露了旧 demo 的不足：可观测取证检查已通过，但独立 gold 证据组仅覆盖 0.75，
+仍有一次错误完成。该问题在基线已存在，当前接入没有修改旧图谱充分性算法。
+因此运行结束与接口接通不能证明证据充分性或学习方法有效。
 
-**终止规则消融**（固定模型选择器）：
-
-| 终止规则 | q1 表现 |
-|---|---|
-| `model`（分层三态头） | 正确完成，ra=13，gold=1.00 |
-| `flat`（扁平三分类基线） | 用于对照“三分类头是否足够” |
-| `rule`（规则三态） | 正确完成，ra=13，gold=1.00 |
-| `naive_target`（见目标就停） | **错误完成，ra=1，gold=0.25** ← 过早停止 |
+默认全模型与终止规则消融尚未针对当前版本重新验证，需固定权重、配置与环境后另行评测。
 
 ---
 
@@ -325,3 +433,39 @@ passed         -> (1, 1)
 - `ModelEncoder.fit(embeddings, targets)` —— 更新问题投影矩阵 `W`；实际语言模型编码器用 `SentenceEmbedder`。
 - `HierarchicalModelStop`、`ModelSelector` 使用 PyTorch MLP 残差头；未训练时输出头零初始化，
   **初始为 0**：未训练时行为等价于启发式，训练后才生效。
+
+
+v2 的有界目录发现只接受 `document_search` 的一个窄例外：`provider="fabric"`、
+`catalog_discovery=true`、`terms=[]`，且 `query` 完全缺席。来源、`mode/as_of/is_demo`
+及含方向的 `scope` 必须明确且一致；`limit` 为 1–20 的整数，预计 `tool_calls=1`。
+不接收 cursor 或翻页参数。普通空检索和 WeKnora 空检索仍拒绝，旧 v1/原 baseline 不变。
+宿主只在 `initial_retrieval_version="literal-language-alternatives-v1"` 的新 v2 调查中，
+本来源所有不同关键词初查都实际 empty、整轮无 evidence 后提供一次该来源候选；
+prepared/sent/unknown/failed 不能替代 empty。宿主按固定 reading_limits 选页长、核许可、
+执行和记实际 query/tool 账。Planner 不伪造空查询回执或占位 query；改 ID、index、说明或
+页长不会重扫同一来源/时点。目录结果仍只是待读候选，不是已覆盖证据。
+合成契约样例见 [`radar-policy-v2-catalog.example.json`](contracts/radar-policy-v2-catalog.example.json)。
+
+
+V2 的实际续页契约见 `contracts/radar-policy-v2-pagination.json`，当前方法为
+`kdd-information-gain-1.4`，停止规则为 `observed_checks_reading_pages_objects_v4`。
+有实际 `has_more=true` 回执时，合法且可负担的续页优先于新查询；每链含首页最多五页。
+`action_limits.document_search` 只计无 cursor 的首查尝试（测试配置 16），
+`document_read` 测试配置 32。续页仍逐次消费真实 `tool_calls` 和步骤，失败及未知回执也保留。
+新查询额度不是总工具额度；宿主必须分别提供当前真实预算。
+
+若宿主遗漏仍可续链的候选，策略返回 `continuation_candidate_required`，
+`action=null`、`state_summary.terminal=false`、`execution_state=awaiting_host_candidates`。
+宿主须从已保存实际回执重建授权候选再调用，不能把这个 `insufficient` 兼容枚举当成终止。
+达到五页、已尝试、预算或许可不允许时，保留未完成链和具体原因；不臆测剩余页数。
+
+`named_objects` 绑定题干原样 Unicode 区间、当前已读证据和合法候选 ID；宿主验证名字
+实际出现在已读正文。未读对象补查优先于一般评分，停止时完整保留
+`unmet_named_objects` 及无法继续原因；原 `reading_manifest` 的版本/窗口义务仍有效。
+示例为 `contracts/radar-policy-v2-continuation-first.example.json`，不含评测答案。
+方法仍为 `heuristic_untrained`；合约回归不证明真实关键材料召回或业务有效。
+原 `external.v1` 和图谱 baseline 的提示、顺序、范围及实现文件保持不变。
+
+### 有材料但仍有重要缺口时的目录发现
+
+新宿主可显式提供 discovery_version=bounded-required-gap-discovery-v1。只有真实搜索回执已完成、没有新采用，且仍有重要必查问题时，带 discovery_basis 的目录候选才可参与原来的评分；一次动作仍受原来源、时点、预算和去重约束。宿主负责逐个核对返回原件的固定版本已读，并检查未读材料和未完成页链；策略仅核其收到的历史、问题及范围，不能把零增量计数当作原件证明。旧请求不带此字段时仍要求没有证据。初查、目录和图谱是否应该提出由宿主决定，本次没有修改评分或停止算法、原 v1 接口与 baseline。

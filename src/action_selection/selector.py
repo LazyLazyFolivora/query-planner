@@ -44,6 +44,23 @@ def _failing_checks(state: PolicyState) -> list[str]:
 
 def action_features(action: Action, state: PolicyState, failing: Sequence[str]) -> np.ndarray:
     """候选动作的 18 维特征。Heuristic 与 Model 共用同一套特征。"""
+    # Host supplied coverage is an observation, while action.coverage_ids only
+    # describes what a candidate might help obtain. Never mark checks passed here.
+    external = getattr(state, "external_checks", None)
+    if external is not None:
+        unmet = {key for key, status in external if status != "passed"}
+        gain = len(unmet.intersection(action.coverage_ids)) / max(len(unmet), 1)
+        f = np.zeros(N_FEAT, dtype=np.float32)
+        if action.kind in KINDS:
+            f[KINDS.index(action.kind)] = 1.0
+        f[4] = action.cost_pressure
+        f[5] = min(action.cost.tool_calls / 2.0, 1.0)
+        f[10] = 1.0
+        f[11] = gain
+        f[12] = gain if action.kind in {"relation_expand", "bounded_path"} else 0.0
+        f[13] = gain if action.kind == "passage_retrieve" else 0.0
+        f[15] = gain if action.kind == "entity_lookup" else 0.0
+        return f
     kind = action.kind
     cost = action.cost
     relation = action.args[1] if kind == "relation_expand" and len(action.args) > 1 else ""
@@ -85,6 +102,8 @@ def action_feature_vector(action: Action, state: PolicyState) -> np.ndarray:
 
 def _affordable(action: Action, state: PolicyState) -> bool:
     c = action.cost.as_dict()
+    if getattr(state, "external_checks", None) is not None:
+        return all(c[d] <= state.remaining[d] for d in state.remaining)
     return all(c[d] <= state.remaining.get(d, 0) for d in c)
 
 
@@ -154,8 +173,9 @@ class LinearModelSelector:
 
     def lam(self, state: PolicyState) -> float:
         limits = state.budget_limits or {}
-        total = max(limits.get("relation_access", 1), 1)
-        ratio = min(state.remaining.get("relation_access", 0) / total, 1.0)
+        dimension = getattr(state, "budget_axis", "relation_access")
+        total = max(limits.get(dimension, 1), 1)
+        ratio = min(state.remaining.get(dimension, 0) / total, 1.0)
         if not self.adaptive:
             return self.lam0 / total
         return self.lam0 * (1.0 + 2.0 * (1.0 - ratio)) / total
@@ -247,8 +267,9 @@ class ModelSelector:
 
     def lam(self, state: PolicyState) -> float:
         limits = state.budget_limits or {}
-        total = max(limits.get("relation_access", 1), 1)
-        ratio = min(state.remaining.get("relation_access", 0) / total, 1.0)
+        dimension = getattr(state, "budget_axis", "relation_access")
+        total = max(limits.get(dimension, 1), 1)
+        ratio = min(state.remaining.get(dimension, 0) / total, 1.0)
         if not self.adaptive:
             return self.lam0 / total
         return self.lam0 * (1.0 + 2.0 * (1.0 - ratio)) / total

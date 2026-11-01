@@ -1,0 +1,1748 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:query-planner:external:v2",
+  "title": "Pure KDD next-action request",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "question",
+    "direction",
+    "budget"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "query-planner.external.v2"
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "question_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "direction": {
+      "enum": [
+        "pipeline",
+        "research",
+        "business",
+        "public_health"
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "direction": {
+          "enum": [
+            "pipeline",
+            "research",
+            "business",
+            "public_health"
+          ]
+        },
+        "as_of": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "mode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "is_demo": {
+          "type": "boolean"
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          }
+        }
+      },
+      "maxItems": 256
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          }
+        }
+      },
+      "maxItems": 256
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "unknown"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "importance": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "maxItems": 256
+          },
+          "artifact_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "version"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                }
+              }
+            },
+            "maxItems": 256
+          },
+          "missing_inputs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "maxItems": 64
+          },
+          "acceptable_alternatives": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "maxItems": 64
+          }
+        }
+      },
+      "maxItems": 64
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "version",
+          "directions"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "kind": {
+            "enum": [
+              "document_search",
+              "entity_relations",
+              "graph_neighbors",
+              "graph_path",
+              "dataset_prepare",
+              "analysis_run",
+              "professional_assess",
+              "document_read",
+              "source_fetch"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "directions": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "pipeline",
+                "research",
+                "business",
+                "public_health"
+              ]
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "input_requirements": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "maxItems": 64
+          }
+        }
+      },
+      "maxItems": 128
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "arguments",
+          "covers",
+          "estimated_cost"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "kind": {
+            "enum": [
+              "document_search",
+              "entity_relations",
+              "graph_neighbors",
+              "graph_path",
+              "dataset_prepare",
+              "analysis_run",
+              "professional_assess",
+              "document_read",
+              "source_fetch"
+            ]
+          },
+          "arguments": {
+            "type": "object"
+          },
+          "covers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "maxItems": 64,
+            "description": "Undeclared coverage IDs are preserved in raw actions and reported as unknown warnings; they confer no score or permission."
+          },
+          "estimated_cost": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "tool_calls": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 10000000
+              },
+              "tokens": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 10000000
+              },
+              "relation_access": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 10000000
+              }
+            }
+          },
+          "applicability": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "eligible",
+                  "ineligible",
+                  "unknown"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "scope_match": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "expected_information": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "check_id",
+                "probability",
+                "impact"
+              ],
+              "properties": {
+                "check_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                },
+                "probability": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "impact": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            },
+            "maxItems": 64
+          },
+          "capability_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "discovery_basis": {
+            "type": "object",
+            "required": [
+              "version",
+              "kind",
+              "query_index",
+              "check_ids"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "version": {
+                "const": "bounded-required-gap-discovery-v1"
+              },
+              "kind": {
+                "const": "required_gap_repeat_search"
+              },
+              "query_index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255
+              },
+              "check_ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 64,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              }
+            },
+            "description": "Host basis for a bounded directory after completed zero-increment searches; returned-version identity and source permission remain host checks."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "dataset_prepare",
+                    "analysis_run",
+                    "professional_assess",
+                    "source_fetch"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "capability_id",
+                "applicability"
+              ],
+              "properties": {
+                "arguments": {
+                  "type": "object",
+                  "required": [
+                    "capability_id",
+                    "capability_version",
+                    "input_refs",
+                    "scope",
+                    "parameters"
+                  ],
+                  "properties": {
+                    "capability_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 400
+                    },
+                    "capability_version": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 400
+                    },
+                    "input_refs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "version"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "version": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          }
+                        },
+                        "additionalProperties": true,
+                        "description": "Only id and version define input identity. Extra fields are metadata and cannot change action deduplication."
+                      },
+                      "maxItems": 256
+                    },
+                    "scope": {
+                      "type": "object",
+                      "properties": {
+                        "direction": {
+                          "enum": [
+                            "pipeline",
+                            "research",
+                            "business",
+                            "public_health"
+                          ]
+                        },
+                        "as_of": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "mode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "is_demo": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "direction"
+                      ]
+                    },
+                    "parameters": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "document_read"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "applicability"
+              ],
+              "properties": {
+                "arguments": {
+                  "type": "object",
+                  "required": [
+                    "provider",
+                    "source_id",
+                    "records",
+                    "scope"
+                  ],
+                  "properties": {
+                    "provider": {
+                      "const": "fabric"
+                    },
+                    "source_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 400
+                    },
+                    "records": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "source_record_id",
+                          "version_id"
+                        ],
+                        "properties": {
+                          "source_record_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "version_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "window_start": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "minItems": 1,
+                      "maxItems": 32,
+                      "uniqueItems": true
+                    },
+                    "scope": {
+                      "type": "object",
+                      "properties": {
+                        "direction": {
+                          "enum": [
+                            "pipeline",
+                            "research",
+                            "business",
+                            "public_health"
+                          ]
+                        },
+                        "as_of": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "mode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "is_demo": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "direction"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "estimated_cost": {
+                  "properties": {
+                    "tool_calls": {
+                      "const": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "arguments": {
+                  "properties": {
+                    "catalog_discovery": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                },
+                "arguments": {
+                  "required": [
+                    "catalog_discovery"
+                  ],
+                  "properties": {
+                    "catalog_discovery": {
+                      "const": true
+                    }
+                  },
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "cursor"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "previous_action_id"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "page_number"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "max_seq"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "applicability"
+              ],
+              "properties": {
+                "arguments": {
+                  "type": "object",
+                  "required": [
+                    "provider",
+                    "source_id",
+                    "catalog_discovery",
+                    "terms",
+                    "limit",
+                    "mode",
+                    "as_of",
+                    "is_demo",
+                    "scope"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "provider": {
+                      "const": "fabric"
+                    },
+                    "source_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 400
+                    },
+                    "catalog_discovery": {
+                      "const": true
+                    },
+                    "terms": {
+                      "type": "array",
+                      "maxItems": 0
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "mode": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "is_demo": {
+                      "type": "boolean"
+                    },
+                    "scope": {
+                      "type": "object",
+                      "properties": {
+                        "direction": {
+                          "enum": [
+                            "pipeline",
+                            "research",
+                            "business",
+                            "public_health"
+                          ]
+                        },
+                        "as_of": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "mode": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "is_demo": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "direction",
+                        "mode",
+                        "as_of",
+                        "is_demo"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "phase": {
+                      "const": "initial"
+                    },
+                    "index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 256
+                    },
+                    "plan": {
+                      "type": "object",
+                      "required": [
+                        "source_id",
+                        "terms"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "source_id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "terms": {
+                          "type": "array",
+                          "maxItems": 0
+                        },
+                        "reason": {}
+                      }
+                    }
+                  },
+                  "description": "One host-authorized bounded first page. Legacy tasks require empty evidence after empty initial alternatives. The explicit discovery_version additionally permits a required-gap directory with a saved discovery_basis after known repeated versions; host enforces all initial attempts, no unread/pending pages, source/time/data scope and actual receipts. A directory is never evidence of complete coverage."
+                },
+                "estimated_cost": {
+                  "required": [
+                    "tool_calls"
+                  ],
+                  "properties": {
+                    "tool_calls": {
+                      "const": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                },
+                "arguments": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "cursor"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "previous_action_id"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "page_number"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "max_seq"
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "applicability"
+              ],
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/fabricContinuationArguments"
+                },
+                "estimated_cost": {
+                  "required": [
+                    "tool_calls"
+                  ],
+                  "properties": {
+                    "tool_calls": {
+                      "const": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "maxItems": 128
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "action_id",
+          "kind",
+          "arguments",
+          "status"
+        ],
+        "properties": {
+          "action_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "kind": {
+            "enum": [
+              "document_search",
+              "entity_relations",
+              "graph_neighbors",
+              "graph_path",
+              "dataset_prepare",
+              "analysis_run",
+              "professional_assess",
+              "document_read",
+              "source_fetch"
+            ]
+          },
+          "arguments": {
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "prepared",
+              "sent",
+              "unknown",
+              "unconfirmed",
+              "completed",
+              "failed",
+              "not_sent"
+            ]
+          },
+          "new_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "maxItems": 256
+          },
+          "new_artifact_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "version"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                }
+              }
+            },
+            "maxItems": 256
+          },
+          "check_updates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "status"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                },
+                "status": {
+                  "enum": [
+                    "passed",
+                    "failed",
+                    "unknown"
+                  ]
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "importance": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "maxItems": 256
+                },
+                "artifact_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "version"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 400
+                      },
+                      "version": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 400
+                      }
+                    }
+                  },
+                  "maxItems": 256
+                },
+                "missing_inputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "maxItems": 64
+                },
+                "acceptable_alternatives": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "maxItems": 64
+                }
+              }
+            },
+            "maxItems": 64
+          },
+          "observed_information": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "pagination": {
+            "$ref": "#/$defs/fabricPaginationReceipt"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "pagination"
+              ]
+            },
+            "then": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                },
+                "status": {
+                  "const": "completed"
+                },
+                "arguments": {
+                  "$ref": "#/$defs/fabricSearchBinding"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                },
+                "arguments": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "cursor"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "previous_action_id"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "page_number"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "max_seq"
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "arguments": {
+                  "$ref": "#/$defs/fabricContinuationArguments"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "maxItems": 256
+    },
+    "budget": {
+      "type": "object",
+      "required": [
+        "limits",
+        "remaining"
+      ],
+      "properties": {
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool_calls": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000000
+            },
+            "tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000000
+            },
+            "relation_access": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000000
+            }
+          }
+        },
+        "remaining": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool_calls": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000000
+            },
+            "tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000000
+            },
+            "relation_access": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000000
+            }
+          }
+        }
+      }
+    },
+    "max_steps": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 256
+    },
+    "reading_manifest": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_record_id",
+          "version_id",
+          "status"
+        ],
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "source_record_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "version_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "status": {
+            "enum": [
+              "read",
+              "unread",
+              "unavailable"
+            ]
+          },
+          "priority": {
+            "enum": [
+              "normal",
+              "critical"
+            ],
+            "default": "normal"
+          },
+          "reason": {
+            "enum": [
+              "correction",
+              "counterevidence",
+              "scope"
+            ],
+            "default": "scope"
+          },
+          "covers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "maxItems": 64
+          },
+          "basis": {
+            "type": "object",
+            "required": [
+              "kind",
+              "reference_ids"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "visible_source_relation",
+                  "observed_gap",
+                  "declared_scope"
+                ]
+              },
+              "reference_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                },
+                "minItems": 1,
+                "maxItems": 256,
+                "uniqueItems": true
+              }
+            },
+            "description": "Host-only visible basis. Source relations refer to currently visible record/evidence IDs; observed gaps to declared checks; scope to checks or question_id. Never evaluator targets."
+          },
+          "window_start": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Unicode offset from a persisted host end/real Fabric locator only. A window is not a new source version or study."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "priority"
+              ],
+              "properties": {
+                "priority": {
+                  "const": "critical"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "basis"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "action_limits": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "document_search",
+          "entity_relations",
+          "graph_neighbors",
+          "graph_path",
+          "dataset_prepare",
+          "analysis_run",
+          "professional_assess",
+          "document_read",
+          "source_fetch"
+        ]
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 256
+      },
+      "description": "Per-kind attempted actions including failed/not_sent. document_search counts new queries (no cursor); continuation still consumes real tool_calls/max_steps and is bounded by five total pages per chain."
+    },
+    "named_objects": {
+      "type": "array",
+      "maxItems": 64,
+      "description": "Host-declared objects from exact visible question spans, never hidden evaluation targets. Host verifies occurrence in actual read text.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "question_span",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "question_span": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "start",
+              "end"
+            ],
+            "properties": {
+              "start": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "description": "Unicode indices; question[start:end] must exactly equal name."
+          },
+          "status": {
+            "enum": [
+              "read",
+              "unread",
+              "unavailable"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            }
+          },
+          "candidate_ids": {
+            "type": "array",
+            "maxItems": 128,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            }
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "unavailable"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "reason"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "discovery_version": {
+      "const": "bounded-required-gap-discovery-v1",
+      "description": "Optional future host discovery policy; absent preserves the evidence-free catalog rule."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "candidates": {
+            "contains": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                },
+                "arguments": {
+                  "required": [
+                    "catalog_discovery"
+                  ],
+                  "properties": {
+                    "catalog_discovery": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "candidates"
+        ]
+      },
+      "then": {
+        "required": [
+          "scope"
+        ],
+        "properties": {
+          "scope": {
+            "required": [
+              "direction",
+              "mode",
+              "as_of",
+              "is_demo"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "candidates"
+        ],
+        "properties": {
+          "candidates": {
+            "contains": {
+              "properties": {
+                "kind": {
+                  "const": "document_search"
+                },
+                "arguments": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "cursor"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "previous_action_id"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "page_number"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "max_seq"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "scope"
+        ],
+        "properties": {
+          "scope": {
+            "required": [
+              "direction",
+              "mode",
+              "as_of",
+              "is_demo"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "fabricSearchBinding": {
+      "type": "object",
+      "required": [
+        "provider",
+        "source_id",
+        "terms",
+        "limit",
+        "mode",
+        "as_of",
+        "is_demo",
+        "scope"
+      ],
+      "properties": {
+        "provider": {
+          "const": "fabric"
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "catalog_discovery": {
+          "type": "boolean"
+        },
+        "terms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "minItems": 0,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "mode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "as_of": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "is_demo": {
+          "type": "boolean"
+        },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "direction": {
+              "enum": [
+                "pipeline",
+                "research",
+                "business",
+                "public_health"
+              ]
+            },
+            "as_of": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "mode": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "is_demo": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "direction",
+            "mode",
+            "as_of",
+            "is_demo"
+          ],
+          "additionalProperties": false
+        },
+        "phase": {
+          "enum": [
+            "initial",
+            "followup"
+          ]
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 256
+        },
+        "plan": {
+          "type": "object",
+          "required": [
+            "source_id",
+            "terms"
+          ],
+          "properties": {
+            "source_id": {
+              "type": "string"
+            },
+            "terms": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {}
+          }
+        }
+      },
+      "description": "Frozen first-page Fabric query binding recorded by the host with an actual pagination receipt.",
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "catalog_discovery"
+            ],
+            "properties": {
+              "catalog_discovery": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "terms": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "terms": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ],
+      "not": {
+        "required": [
+          "query"
+        ]
+      }
+    },
+    "fabricContinuationArguments": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/fabricSearchBinding"
+        },
+        {
+          "required": [
+            "cursor",
+            "previous_action_id",
+            "page_number",
+            "max_seq"
+          ],
+          "properties": {
+            "cursor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "previous_action_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "page_number": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 5
+            },
+            "max_seq": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false,
+      "description": "Host-supplied actual receipt-bound cursor; at most five total pages per chain. Each page consumes actual tool_calls and max_steps, but continuation does not consume the new-query document_search allowance."
+    },
+    "fabricPaginationReceipt": {
+      "type": "object",
+      "required": [
+        "has_more",
+        "next_cursor",
+        "max_seq",
+        "page_number"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "has_more": {
+          "type": "boolean"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "max_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "page_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "has_more": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "next_cursor": {
+                "type": "string"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "next_cursor": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

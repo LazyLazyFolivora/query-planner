@@ -56,6 +56,9 @@ def observable_sufficiency_status(state) -> tuple[tuple[str, str], ...]:
       failed          适用但尚未满足
       not_applicable 该检查不适用于当前问题（例如非机制型问题的因果链检查）
     """
+    external = getattr(state, "external_checks", None)
+    if external is not None:
+        return tuple(external)
     triples = evidence_triples(state.evidence)
     statuses: list[tuple[str, str]] = []
 
@@ -106,7 +109,7 @@ def observable_sufficiency(state) -> tuple[float, list[tuple[str, bool]]]:
     for check_id, status in statuses:
         if status == CHECK_NOT_APPLICABLE:
             continue
-        label = CHECK_LABELS[check_id]
+        label = CHECK_LABELS.get(check_id, check_id)
         if check_id == CHECK_REQUIRED_RELATIONS and state.required_relation_groups:
             label = label + ": " + "/".join(state.required_relation_groups)
         checks.append((label, status == CHECK_PASSED))
