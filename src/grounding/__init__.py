@@ -1,1 +1,0 @@
-"""KG grounding layer: mention resolution + evidence requirement building."""
