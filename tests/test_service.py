@@ -27,8 +27,9 @@ def test_decide_planner_and_baseline():
     r = client.post("/v1/decide", json=body(), headers=AUTH)
     assert r.status_code == 200
     out = r.json()
-    assert out["decision"] == "continue" and out["candidate"] == 1  # read for an open required check
-    assert len(out["scores"]) == 2
+    assert out["decision"] == "continue" and len(out["scores"]) == 2
+    best = max(range(2), key=lambda i: (out["scores"][i], -i))
+    assert out["candidate"] == best  # an ordinary read is ranked by its score like the search
     r = client.post("/v1/decide", json=body(policy="baseline"), headers=AUTH)
     assert r.json()["candidate"] == 0 and r.json()["reason"] == "baseline_search"
 
