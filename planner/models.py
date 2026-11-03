@@ -31,6 +31,7 @@ class Candidate(_Strict):
     scope_match: float = Field(1.0, ge=0, le=1)  # how well it fits the question's scope
     critical: bool = False       # a read of a record the radar marked critical (correction, counter-evidence)
     names_object: bool = False   # looks up an object named in the question that is still unread
+    follows_up: bool = False     # searches an object a record read so far named with a decisive fact
 
 
 class HistoryItem(_Strict):

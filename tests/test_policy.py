@@ -150,10 +150,23 @@ def test_next_page_blocks_complete_while_affordable():
     assert decide(request(checks, [dict(page, cost=50)])).decision == "complete"  # cannot be afforded
 
 
-def test_read_for_open_required_check_beats_higher_scoring_search():
+def test_read_for_open_required_check_is_floored_but_does_not_outrank_a_better_search():
+    """Codex r35: every read on an open check was ranked before any search whatever its score, so the
+    planner read ten background records in a row (scores 0.227 vs 0.488 and still read)."""
     req = request([check()], [cand(), cand("read", "pubmed", impact=0, args={"ids": ["E9"]})])
     out = decide(req)
-    assert out.candidate == 1 and out.scores[1] > 0  # zero estimated impact, still floored
+    assert out.candidate == 0 and out.scores[1] > 0  # the read is still floored, not dropped
+    alone = decide(request([check()], [cand("read", "pubmed", impact=0, args={"ids": ["E9"]})]))
+    assert alone.candidate == 0  # and is read when nothing better is there
+
+
+def test_a_follow_up_of_a_found_object_goes_before_ordinary_reads():
+    reads = [cand("read", "s", args={"record_id": f"r{i}"}, impact=1.0) for i in range(3)]
+    follow = cand(source="s", follows_up=True, impact=0.1, args={"terms": ["新城医院"]})
+    out = decide(request([check()], reads + [follow]))
+    assert out.candidate == 3
+    without = decide(request([check()], reads + [dict(follow, follows_up=False)]))
+    assert without.candidate != 3  # without the flag the low-impact search is not chosen
 
 
 def test_read_of_answered_or_optional_check_has_no_floor():

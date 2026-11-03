@@ -106,8 +106,16 @@ def score(c: Candidate, req: DecideRequest, done: set[str], open_required: set[s
 
 
 def priority(c: Candidate, open_required: set[str]) -> tuple[int, int, int]:
-    """Ranked before the score: continuation page, then named object, then critical read."""
-    return (int(c.kind == "next_page"), int(c.names_object), int(_critical_read(c, open_required)))
+    """Ranked before the score: continuation page, then a named or newly found object, then a read the
+    radar marked critical (correction, counter-evidence). An ordinary read for an open required check is
+    only floored in score, not ranked first, so a run is not held to reading background record after
+    background record while a search that follows up what was found waits."""
+    return (int(c.kind == "next_page"), int(c.names_object or c.follows_up), int(c.kind == "read" and c.critical))
+
+
+def obligation(c: Candidate, open_required: set[str]) -> bool:
+    """Work that must not be skipped while it can be afforded: it blocks stopping as complete."""
+    return c.kind == "next_page" or c.names_object or _critical_read(c, open_required)
 
 
 # ---- decision ------------------------------------------------------------
@@ -127,7 +135,7 @@ def decide(req: DecideRequest) -> DecideResponse:
     if any(h.status == "pending" for h in req.history):
         return out("insufficient", "pending_execution")
     # Work the radar can still do that must not be skipped: next page, named object, critical read.
-    unfinished = [i for i in can_do if priority(req.candidates[i], open_required) != (0, 0, 0)]
+    unfinished = [i for i in can_do if obligation(req.candidates[i], open_required)]
     if required_met(req) and not unfinished:
         return out("complete", "required_checks_answered")
     if req.budget.steps_left <= 0:
