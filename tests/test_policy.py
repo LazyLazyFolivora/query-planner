@@ -85,11 +85,11 @@ def test_cost_pressure_lowers_score():
     assert round(cheap, 6) == round(0.5 / (1 + 0.25 * 0.1), 6)
 
 
-def test_gain_adds_up_over_target_checks_but_not_answered_ones():
+def test_gain_adds_up_over_target_checks_and_answered_ones_count_partly():
     checks = [check("Q1"), check("Q2"), check("Q3", "answered")]
     one, two, three = decide(request(checks, [cand(targets=["Q1"]), cand(source="b", targets=["Q1", "Q2"]),
                                               cand(source="c", targets=["Q1", "Q2", "Q3"])])).scores
-    assert two > one and two == three
+    assert three - two == pytest.approx(0.25 * one, abs=1e-5) and two > one
 
 
 def test_past_gain_of_same_family_raises_score_and_failures_lower_it():
@@ -179,6 +179,7 @@ def test_named_object_lookup_is_floored_and_blocks_complete():
 
 
 def test_an_answered_check_keeps_part_of_its_weight_while_a_required_one_is_open():
-    req = request([check("Q1", "answered"), check("Q2")], [cand("read", targets=["Q1"]), cand("read", targets=["Q2"])])
+    req = request([check("Q1", "answered"), check("Q2")], [cand("read", targets=["Q1"], args={"record_id": "a"}),
+                                                     cand("read", targets=["Q2"], args={"record_id": "b"})])
     out = decide(req)
     assert out.candidate == 1 and 0 < out.scores[0] < out.scores[1]
