@@ -10,6 +10,8 @@ PRIOR = 0.5        # untrained prior chance that an action of this family helps 
 PRIOR_WEIGHT = 2   # the prior counts as this many past observations (Beta-style)
 COST_WEIGHT = 0.25
 FLOOR = 0.25       # minimum score of an unread obligation (next page, named object, critical read)
+PARTIAL = 0.25     # weight of an answered check while a required one is open: one record often answers
+                   # only part of it (one of three companies, one period)
 _SORTED_SETS = {"terms", "source_ids", "ids"}
 
 
@@ -87,11 +89,12 @@ def _critical_read(c: Candidate, open_required: set[str]) -> bool:
 
 
 def score(c: Candidate, req: DecideRequest, done: set[str], open_required: set[str]) -> float:
-    """importance x posterior gain x impact x scope_match over unmet target checks,
+    """importance x posterior gain x impact x scope_match over target checks (answered ones partly),
     divided by (1 + 0.25 x cost pressure); raised to a floor for unread obligations."""
     importance = {k.id: k.importance for k in req.checks}
-    gain = sum(importance[cid] * _posterior(c, cid, req) * c.impact * c.scope_match
-               for cid in c.target_checks if cid in importance and cid not in done)
+    weight = {cid: PARTIAL if open_required else 0.0 for cid in done}
+    gain = sum(importance[cid] * weight.get(cid, 1.0) * _posterior(c, cid, req) * c.impact * c.scope_match
+               for cid in c.target_checks if cid in importance)
     pressure = _pressure(c, req)
     value = gain / (1 + COST_WEIGHT * pressure)
     if c.kind == "next_page" or c.names_object or _critical_read(c, open_required):

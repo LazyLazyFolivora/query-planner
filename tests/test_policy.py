@@ -56,8 +56,8 @@ def test_nothing_affordable_by_cost_or_by_reads():
 
 
 def test_zero_expected_gain_stops():
-    # the only candidate targets a check that is already answered
-    req = request([check("Q1"), check("Q2", "answered")], [cand(targets=["Q2"])])
+    # the only candidate targets an answered check of no importance
+    req = request([check("Q1"), check("Q2", "answered", importance=0)], [cand(targets=["Q2"])])
     assert decide(req).reason == "no_expected_gain"
     assert decide(request([check(importance=0)], [cand()])).reason == "no_expected_gain"
 
@@ -176,3 +176,9 @@ def test_named_object_lookup_is_floored_and_blocks_complete():
     assert (out.decision, out.candidate) == ("continue", 0)
     out = decide(request([check()], [cand(), lookup]))
     assert out.candidate == 1
+
+
+def test_an_answered_check_keeps_part_of_its_weight_while_a_required_one_is_open():
+    req = request([check("Q1", "answered"), check("Q2")], [cand("read", targets=["Q1"]), cand("read", targets=["Q2"])])
+    out = decide(req)
+    assert out.candidate == 1 and 0 < out.scores[0] < out.scores[1]
