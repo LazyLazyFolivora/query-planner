@@ -9,6 +9,7 @@ from .models import Candidate, DecideRequest, DecideResponse
 PRIOR = 0.5        # untrained prior chance that an action of this family helps a check
 PRIOR_WEIGHT = 2   # the prior counts as this many past observations (Beta-style)
 COST_WEIGHT = 0.25
+EVIDENCE_WEIGHT = 0.5  # a family that keeps finding evidence without finishing a check is still worth trying
 FLOOR = 0.25       # minimum score of an unread obligation (next page, named object, critical read)
 PARTIAL = 0.25     # weight of an answered check while a required one is open: one record often answers
                    # only part of it (one of three companies, one period)
@@ -69,7 +70,7 @@ def affordable(c: Candidate, req: DecideRequest) -> bool:
 def _posterior(c: Candidate, check_id: str, req: DecideRequest) -> float:
     """Beta-style mean of the prior and past gains of the same action family (kind + source)."""
     family = (c.kind, c.source.strip().casefold())
-    seen = [0.0 if h.status == "failed" else h.gain
+    seen = [0.0 if h.status == "failed" else max(h.gain, EVIDENCE_WEIGHT * (h.evidence_gain or 0.0))
             for h in req.history
             if h.status != "pending" and (h.kind, h.source.strip().casefold()) == family
             and (h.status == "failed" or check_id in h.target_checks)]

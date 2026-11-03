@@ -37,7 +37,10 @@ class HistoryItem(_Strict):
     kind: Kind
     source: str = ""
     target_checks: list[str] = Field(default_factory=list)
-    gain: float = Field(0.0, ge=0, le=1)
+    gain: float = Field(0.0, ge=0, le=1)  # how much the action moved checks towards answered
+    # what it found apart from answering: new decisive evidence, a new object, a correction arriving
+    # (None from callers that do not report it; then only gain counts, as before)
+    evidence_gain: float | None = Field(None, ge=0, le=1)
     args: dict = Field(default_factory=dict)  # lets the planner recognise an action that was already tried
     status: Literal["completed", "failed", "pending"] = "completed"
 

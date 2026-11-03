@@ -183,3 +183,17 @@ def test_an_answered_check_keeps_part_of_its_weight_while_a_required_one_is_open
                                                      cand("read", targets=["Q2"], args={"record_id": "b"})])
     out = decide(req)
     assert out.candidate == 1 and 0 < out.scores[0] < out.scores[1]
+
+
+def test_a_family_that_finds_evidence_without_finishing_a_check_keeps_its_value():
+    """Codex PHX r2: a read that found a key fact but did not finish a broad check counted as zero gain, so
+    the planner turned away from the family that was finding the events."""
+    from planner.policy import _posterior
+
+    reads = [cand(kind="read", source="s", targets=["Q1"])]
+    empty = request([check()], reads, [hist(kind="read", source="s", targets=["Q1"], gain=0.0)] * 3)
+    finding = request([check()], reads, [hist(kind="read", source="s", targets=["Q1"], gain=0.0,
+                                               evidence_gain=1.0)] * 3)
+    assert _posterior(finding.candidates[0], "Q1", finding) > _posterior(empty.candidates[0], "Q1", empty)
+    old = request([check()], reads, [hist(kind="read", source="s", targets=["Q1"], gain=0.4)])
+    assert old.history[0].evidence_gain is None  # callers that do not send it are scored as before
