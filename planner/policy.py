@@ -86,8 +86,13 @@ def _pressure(c: Candidate, req: DecideRequest) -> float:
 
 def _unverified_records(req: DecideRequest) -> set[tuple[str, str]]:
     """(source, record id) of series values the question uses that are not in the effective series now
-    (unchecked, inconsistent, no longer readable): reading them again is how they could be verified."""
-    return {(p.source.strip().casefold(), p.record_id) for p in req.series if not p.current}
+    (unchecked, inconsistent, no longer readable) or that the radar may not compare now (withdrawn by a
+    correction, no known domain): reading them again is how they could be verified."""
+    return {
+        (p.source.strip().casefold(), p.record_id)
+        for p in req.series
+        if not p.current or (p.comparability is not None and p.comparability.state == "not_comparable")
+    }
 
 
 def verifies(c: Candidate, req: DecideRequest) -> bool:

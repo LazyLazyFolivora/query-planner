@@ -60,6 +60,18 @@ class ExtractionCheck(_Strict):
     reason: str | None = Field(None, max_length=120)
 
 
+class Comparability(_Strict):
+    """Whether the radar may compare this value with the others of its series now (T-24), a layer apart from
+    its extraction check: "provisional" - one known domain (the topic its record was placed in), the business
+    subject not yet checked; "not_comparable" - withdrawn by a correction, or of no known domain."""
+    version: str = Field(min_length=1, max_length=40)
+    state: Literal["provisional", "not_comparable"]
+    domain_basis: Literal["topic", "unknown"]
+    domain_id: str | None = Field(None, max_length=64)
+    reasons: list[Literal["needs_subject", "domain_unknown", "withdrawn_by_correction",
+                          "cross_domain_correction"]] = Field(default_factory=list, max_length=8)
+
+
 class SeriesPoint(_Strict):
     """A value the analysis is about, with its quality state. Read only: no decision changes it, and the
     planner has no way to admit a value to a series - it may only choose to re-read where it came from."""
@@ -73,6 +85,7 @@ class SeriesPoint(_Strict):
     period: str = Field("", max_length=40)
     current: bool  # in the radar's effective series now (checked by the current checker, still readable)
     extraction_check: ExtractionCheck | None = None
+    comparability: Comparability | None = None  # T-24; absent from older callers
 
 
 class DecideRequest(_Strict):
