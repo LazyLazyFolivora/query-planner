@@ -51,6 +51,30 @@ class Budget(_Strict):
     reads_left: int = Field(ge=0)
 
 
+class ExtractionCheck(_Strict):
+    """The radar's persisted check of one measured value (BioCheck extraction consistency), as it is now."""
+    status: Literal["consistent", "inconsistent", "unchecked"]
+    gate: Literal["series", "candidate"]
+    checker_version: str = Field(min_length=1, max_length=80)
+    check_id: int | None = None
+    reason: str | None = Field(None, max_length=120)
+
+
+class SeriesPoint(_Strict):
+    """A value the analysis is about, with its quality state. Read only: no decision changes it, and the
+    planner has no way to admit a value to a series - it may only choose to re-read where it came from."""
+    source: str = Field(min_length=1, max_length=80)
+    record_id: str = Field(min_length=1, max_length=400)
+    version_id: str = Field("", max_length=128)
+    object: str = Field("", max_length=200)
+    metric: str = Field("", max_length=200)
+    value: str = Field("", max_length=40)
+    unit: str = Field("", max_length=50)
+    period: str = Field("", max_length=40)
+    current: bool  # in the radar's effective series now (checked by the current checker, still readable)
+    extraction_check: ExtractionCheck | None = None
+
+
 class DecideRequest(_Strict):
     question: str
     checks: list[Check] = Field(default_factory=list, max_length=64)
@@ -58,6 +82,8 @@ class DecideRequest(_Strict):
     history: list[HistoryItem] = Field(default_factory=list, max_length=512)
     budget: Budget
     policy: Literal["planner", "baseline"] = "planner"
+    # T-29 P3: the series values the question rests on and their quality state (empty for older callers)
+    series: list[SeriesPoint] = Field(default_factory=list, max_length=64)
 
     @model_validator(mode="after")
     def _unique_check_ids(self):

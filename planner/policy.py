@@ -84,6 +84,18 @@ def _pressure(c: Candidate, req: DecideRequest) -> float:
     return pressure
 
 
+def _unverified_records(req: DecideRequest) -> set[tuple[str, str]]:
+    """(source, record id) of series values the question uses that are not in the effective series now
+    (unchecked, inconsistent, no longer readable): reading them again is how they could be verified."""
+    return {(p.source.strip().casefold(), p.record_id) for p in req.series if not p.current}
+
+
+def verifies(c: Candidate, req: DecideRequest) -> bool:
+    """A read of the record behind a series value that is not verified now."""
+    return c.kind == "read" and (c.source.strip().casefold(), str(c.args.get("record_id", ""))) in \
+        _unverified_records(req)
+
+
 def _critical_read(c: Candidate, open_required: set[str]) -> bool:
     """An unread record that bears on an open required check (or is marked critical)."""
     return c.kind == "read" and (c.critical or bool(open_required & set(c.target_checks)))
@@ -98,19 +110,22 @@ def score(c: Candidate, req: DecideRequest, done: set[str], open_required: set[s
                for cid in c.target_checks if cid in importance)
     pressure = _pressure(c, req)
     value = gain / (1 + COST_WEIGHT * pressure)
-    if c.kind == "next_page" or c.names_object or _critical_read(c, open_required):
+    if c.kind == "next_page" or c.names_object or _critical_read(c, open_required) or verifies(c, req):
         # A concrete unread thing must not be skipped just because an untrained
         # estimate says zero gain. This is an obligation, not measured gain.
         value = max(value, FLOOR * c.scope_match / (1 + pressure))
     return value
 
 
-def priority(c: Candidate, open_required: set[str]) -> tuple[int, int, int]:
+def priority(c: Candidate, open_required: set[str], req: DecideRequest | None = None) -> tuple[int, int, int]:
     """Ranked before the score: continuation page, then a named or newly found object, then a read the
-    radar marked critical (correction, counter-evidence). An ordinary read for an open required check is
-    only floored in score, not ranked first, so a run is not held to reading background record after
-    background record while a search that follows up what was found waits."""
-    return (int(c.kind == "next_page"), int(c.names_object or c.follows_up), int(c.kind == "read" and c.critical))
+    radar marked critical (correction, counter-evidence) or a read that would verify a series value the
+    question uses but that is not verified now. An ordinary read for an open required check is only floored
+    in score, not ranked first, so a run is not held to reading background record after background record
+    while a search that follows up what was found waits."""
+    verify = req is not None and verifies(c, req)
+    return (int(c.kind == "next_page"), int(c.names_object or c.follows_up),
+            int(c.kind == "read" and (c.critical or verify)))
 
 
 def obligation(c: Candidate, open_required: set[str]) -> bool:
@@ -144,7 +159,9 @@ def decide(req: DecideRequest) -> DecideResponse:
         return out("insufficient", "no_candidates")
     if not can_do:
         return out("insufficient", "nothing_affordable")
-    best = min(can_do, key=lambda i: (tuple(-p for p in priority(req.candidates[i], open_required)), -scores[i], i))
+    best = min(can_do, key=lambda i: (tuple(-p for p in priority(req.candidates[i], open_required, req)),
+                                      -scores[i], i))
     if scores[best] <= 0:
         return out("insufficient", "no_expected_gain")
-    return out("continue", "best_score", best)
+    # the series state only steers which record is read next: a verification read is named as such
+    return out("continue", "verify_series_value" if verifies(req.candidates[best], req) else "best_score", best)
