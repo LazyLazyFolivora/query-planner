@@ -1,7 +1,8 @@
 """Request and response shapes of POST /v1/decide (BioRadar SPEC section 3.3)."""
+import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Kind = Literal["search", "read", "next_page", "fetch", "dataset", "analysis", "mechanism"]
 
@@ -60,16 +61,35 @@ class ExtractionCheck(_Strict):
     reason: str | None = Field(None, max_length=120)
 
 
+COMPARABILITY_REASONS = frozenset({
+    "needs_subject", "domain_unknown", "withdrawn_by_correction", "cross_domain_correction",
+    "family_not_determined", "efficacy_not_compared",
+})
+DIM_KINDS = ("disease", "population", "date_basis", "case_definition", "coverage", "denominator_definition",
+             "product_or_class", "milestone_definition", "indication", "entity", "stage")
+DIM_REASON = re.compile(r"dim_(?:unknown|unchecked):(?:" + "|".join(DIM_KINDS) + r")")
+
+
 class Comparability(_Strict):
     """Whether the radar may compare this value with the others of its series now (T-24), a layer apart from
     its extraction check: "provisional" - one known domain (the topic its record was placed in), the business
     subject not yet checked; "not_comparable" - withdrawn by a correction, or of no known domain."""
     version: str = Field(min_length=1, max_length=40)
-    state: Literal["provisional", "not_comparable"]
+    # v1: provisional / not_comparable; v2 (complete domain): comparable only when the metric family and every
+    # required dimension are proven, not_comparable with each gap otherwise
+    state: Literal["provisional", "comparable", "not_comparable"]
     domain_basis: Literal["topic", "unknown"]
     domain_id: str | None = Field(None, max_length=64)
-    reasons: list[Literal["needs_subject", "domain_unknown", "withdrawn_by_correction",
-                          "cross_domain_correction"]] = Field(default_factory=list, max_length=8)
+    family: str = Field("", max_length=30)
+    reasons: list[str] = Field(default_factory=list, max_length=16)
+
+    @field_validator("reasons")
+    @classmethod
+    def _known_reasons(cls, reasons):
+        for r in reasons:
+            if r not in COMPARABILITY_REASONS and not DIM_REASON.fullmatch(r):
+                raise ValueError(f"unknown comparability reason: {r}")
+        return reasons
 
 
 class SeriesPoint(_Strict):

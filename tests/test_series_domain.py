@@ -40,7 +40,7 @@ def test_an_unknown_reason_or_state_is_refused():
     with pytest.raises(ValidationError):
         request(candidates=CANDIDATES, series=[point(reasons=["looks_similar"])])
     with pytest.raises(ValidationError):
-        request(candidates=CANDIDATES, series=[point(state="comparable")])
+        request(candidates=CANDIDATES, series=[point(state="maybe")])  # comparable is a v2 state
 
 
 def test_the_baseline_ignores_comparability():
@@ -58,3 +58,32 @@ def test_over_http_the_field_is_accepted_and_older_bodies_still_are(monkeypatch)
         got = c.post("/v1/decide", json=body.model_dump(mode="json"), headers=h)
         assert got.status_code == 200 and got.json()["reason"] == "verify_series_value"
         assert c.post("/v1/decide", json=old.model_dump(mode="json", exclude_none=True), headers=h).status_code == 200
+
+
+
+V2 = {"version": "series_domain.v2", "state": "comparable", "domain_basis": "topic", "domain_id": "t-1",
+      "family": "case_count", "reasons": []}
+
+
+def point_v2(**over):
+    p = copy.deepcopy(POINT)
+    p["comparability"] = dict(V2, **over)
+    return p
+
+
+def test_v2_a_comparable_value_changes_nothing():
+    plain = policy.decide(request(candidates=CANDIDATES))
+    assert policy.decide(request(candidates=CANDIDATES, series=[point_v2()])) == plain
+
+
+@pytest.mark.parametrize("reasons", [["family_not_determined"], ["dim_unknown:population"],
+                                     ["dim_unchecked:disease", "dim_unknown:date_basis"], ["efficacy_not_compared"]])
+def test_v2_a_value_with_domain_gaps_is_a_verification_read(reasons):
+    got = policy.decide(request(candidates=CANDIDATES, series=[point_v2(state="not_comparable", reasons=reasons)]))
+    assert (got.decision, got.candidate, got.reason) == ("continue", 2, "verify_series_value")
+
+
+@pytest.mark.parametrize("reasons", [["dim_unknown:mood"], ["dim_guessed:disease"], ["looks_similar"]])
+def test_v2_an_unknown_reason_or_dimension_is_refused(reasons):
+    with pytest.raises(ValidationError):
+        request(candidates=CANDIDATES, series=[point_v2(state="not_comparable", reasons=reasons)])
