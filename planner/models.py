@@ -63,7 +63,7 @@ class ExtractionCheck(_Strict):
 
 COMPARABILITY_REASONS = frozenset({
     "needs_subject", "domain_unknown", "withdrawn_by_correction", "cross_domain_correction",
-    "family_not_determined", "efficacy_not_compared",
+    "family_not_determined", "efficacy_not_compared", "record_internal_conflict",
 })
 DIM_KINDS = ("disease", "population", "date_basis", "case_definition", "coverage", "denominator_definition",
              "product_or_class", "milestone_definition", "indication", "entity", "stage")
