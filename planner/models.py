@@ -64,7 +64,7 @@ class ExtractionCheck(_Strict):
 COMPARABILITY_REASONS = frozenset({
     "needs_subject", "domain_unknown", "withdrawn_by_correction", "cross_domain_correction",
     "family_not_determined", "efficacy_not_compared", "record_internal_conflict",
-    "superseded_by_artifact",  # T-26: the value was read again from an upgraded artifact, or not given by it
+    "superseded_by_artifact",  # the value was read again from an upgraded artifact, or not given by it
 })
 DIM_KINDS = ("disease", "population", "date_basis", "case_definition", "coverage", "denominator_definition",
              "product_or_class", "milestone_definition", "indication", "entity", "stage")
@@ -72,7 +72,7 @@ DIM_REASON = re.compile(r"dim_(?:unknown|unchecked):(?:" + "|".join(DIM_KINDS) +
 
 
 class Comparability(_Strict):
-    """Whether the radar may compare this value with the others of its series now (T-24), a layer apart from
+    """Whether the radar may compare this value with the others of its series now, a layer apart from
     its extraction check: "provisional" - one known domain (the topic its record was placed in), the business
     subject not yet checked; "not_comparable" - withdrawn by a correction, or of no known domain."""
     version: str = Field(min_length=1, max_length=40)
@@ -106,7 +106,7 @@ class SeriesPoint(_Strict):
     period: str = Field("", max_length=40)
     current: bool  # in the radar's effective series now (checked by the current checker, still readable)
     extraction_check: ExtractionCheck | None = None
-    comparability: Comparability | None = None  # T-24; absent from older callers
+    comparability: Comparability | None = None  # absent from older callers
 
 
 class DecideRequest(_Strict):
@@ -116,7 +116,7 @@ class DecideRequest(_Strict):
     history: list[HistoryItem] = Field(default_factory=list, max_length=512)
     budget: Budget
     policy: Literal["planner", "baseline"] = "planner"
-    # T-29 P3: the series values the question rests on and their quality state (empty for older callers)
+    # the series values the question rests on and their quality state (empty for older callers)
     series: list[SeriesPoint] = Field(default_factory=list, max_length=64)
 
     @model_validator(mode="after")

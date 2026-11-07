@@ -23,7 +23,7 @@ make venv                     # .venv，只按 requirements.lock 安装，每个
 . .venv/bin/activate
 
 export SERVICE_TOKEN=换成一个长随机串   # Windows PowerShell: $env:SERVICE_TOKEN="..."
-uvicorn planner.service:app --port 8000
+uvicorn planner.service:app --host 127.0.0.1 --port 18561   # 18561 是现役规划服务的端口
 ```
 
 - `GET /health`：不需要令牌，返回 `{"status": "ok"}`。
@@ -68,6 +68,7 @@ uvicorn planner.service:app --port 8000
 - `history[]`：做过的动作；`gain` 是它带来的信息增益（0 到 1），`args` 用来识别“已经做过”。
 - 以下是**可选**字段，不写就取默认值，需要雷达额外判断时才用：候选的 `impact`（命中后对答案的影响，默认 1）、`scope_match`（与问题范围的吻合度，默认 1）、`critical`（读的是更正、反证等关键记录）、`names_object`（查的是问题里点名但还没读过的对象）；历史的 `status`（`completed` 默认 / `failed` / `pending`，发出了但还没确认的写 `pending`）。
 - 多写了不认识的字段会得到 422，而不是被悄悄忽略。
+- `series[]`（可选，缺省为空）：问题所依据的数值序列点和它们现在的质量状态，只读输入，不改变任何决策——规划器没有办法把一个值放进序列，只能选择重读它的来源记录。每个点带 `source`、`record_id`、`current`（是否在雷达当前有效序列里：被现行核验器验过且仍可读）、`extraction_check`（BioCheck 抽取核验结果：`status` / `gate` / `checker_version`）和 `comparability`（`provisional` / `comparable` / `not_comparable` 及原因）。只要某个点现在不在有效序列里，或雷达现在不能拿它比较（被更正撤回、没有已知领域），读取它的来源记录就是一次“核验读取”，响应的 `reason` 为 `verify_series_value`；不发 `series` 的调用方行为完全不变，`baseline` 忽略它。
 
 ## 打分和停止规则（大白话）
 
@@ -119,6 +120,6 @@ make check-lock      # requirements.lock 是否仍与 requirements-dev.txt 一�
 
 不联网。覆盖：停止规则顺序、打分次序、去重、翻页优先、“答完但没有证据”被降级、baseline 顺序，以及令牌和错误格式。
 
-## 这次改了什么
+## 设计来由
 
-整个重写成上面这个小服务（见 BioRadar 重构规格 3.3）。删掉了：旧的 v1 外部接口、与雷达无关的知识图谱演示（解析、实体链接、Torch 网络、`kg.py`、`primekg.py`）及其测试、数据和脚本、1748 行的合约 schema 和样例、源码哈希（`radar_policy.py`）、`run_demo.py`、模型客户端和 `.env` 加载、Torch 依赖，以及只服务旧演示的训练代码。保留并简化了 `kdd.py` 的打分、停止规则、“答完须有当前证据”、语义去重和翻页/关键记录的优先级；Fabric 游标和目录发现的专用校验不再放在这里，翻页由雷达当作普通候选提供。
+这个服务是从旧演示整个重写出来的，删了什么、留了什么，见 [docs/decisions/0001-rewrite-as-small-service.md](docs/decisions/0001-rewrite-as-small-service.md)。
