@@ -1,6 +1,6 @@
-from planner.baseline import decide
-
 from helpers import cand, check, hist, request
+
+from planner.baseline import decide
 
 
 def walk(candidates, checks=None, **budget):

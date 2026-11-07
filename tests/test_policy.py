@@ -1,9 +1,7 @@
 import pytest
-
-from planner.policy import decide
-
 from helpers import cand, check, hist, request
 
+from planner.policy import decide
 
 # ---- stop rules, in order ------------------------------------------------
 

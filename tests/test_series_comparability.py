@@ -5,12 +5,12 @@ import copy
 
 import pytest
 from fastapi.testclient import TestClient
+from helpers import request
 from pydantic import ValidationError
+from test_series_quality import CANDIDATES, POINT
 
-from helpers import cand, request
 from planner import baseline, policy
 from planner.service import app
-from test_series_quality import CANDIDATES, POINT
 
 PROVISIONAL = {"version": "series_domain.v1", "state": "provisional", "domain_basis": "topic", "domain_id": "t-1",
                "reasons": ["needs_subject"]}

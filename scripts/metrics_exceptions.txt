@@ -1,0 +1,5 @@
+# Functions allowed over 80 lines or complexity 20 (scripts/code_metrics.py --check). Format:
+#   <path>:<qualified name>  <lines>/<cc>  <reason>
+# <lines>/<cc> is the size when the entry was written: a listed function may not grow past it. The check fails
+# on a new violator, on an entry that is within the limits now, and on a listed function that got bigger, so the
+# list only shrinks.

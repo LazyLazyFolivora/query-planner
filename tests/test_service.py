@@ -1,9 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
+from helpers import cand, check
 
 from planner.service import app
-
-from helpers import cand, check
 
 client = TestClient(app)
 AUTH = {"Authorization": "Bearer secret"}

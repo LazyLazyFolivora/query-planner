@@ -8,11 +8,13 @@ PY = $(VENV)/bin/python
 LOCK_INPUTS = requirements-dev.txt
 LOCK_FLAGS = --generate-hashes --python-version 3.12 --python-platform x86_64-unknown-linux-gnu
 
-.PHONY: help venv test check check-install check-lock lock
+.PHONY: help venv test lint metrics check check-install check-lock lock
 help:
 	@echo 'make venv           $(VENV) from requirements.lock only (hash-checked, Python $(PYTHON))'
 	@echo 'make test           the full test suite in $(VENV)'
-	@echo 'make check          test + check-lock'
+	@echo 'make lint            ruff over the checkout (pyproject.toml)'
+	@echo 'make metrics         function size / complexity gate (scripts/metrics_exceptions.txt: frozen violators, list only shrinks)'
+	@echo 'make check          test + lint + metrics + check-lock'
 	@echo 'make check-install  a throwaway venv from the lock: import every module, run the suite'
 	@echo 'make check-lock     requirements.lock still matches $(LOCK_INPUTS) (reads the index)'
 	@echo 'make lock           re-resolve requirements.lock after a change of $(LOCK_INPUTS)'
@@ -21,7 +23,11 @@ venv:
 	$(UV) pip sync --quiet --python $(PY) --require-hashes requirements.lock
 test: venv
 	$(PY) -m pytest -q
-check: test check-lock
+lint: venv
+	$(PY) -m ruff check .
+metrics: venv
+	$(PY) scripts/code_metrics.py --check
+check: test lint metrics check-lock
 check-install:
 	UV=$(UV) PYTHON=$(PYTHON) sh scripts/check_clean_install.sh
 # the lock is re-resolved with itself as the preference: unchanged inputs give the same pins.
