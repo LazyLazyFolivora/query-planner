@@ -1,4 +1,4 @@
-"""T-29 P3: the radar's series quality state as a read-only decide input. It only steers which record is read
+"""The radar's series quality state as a read-only decide input. It only steers which record is read
 next (a value not verified now makes reading its record a verification read); it changes nothing for callers
 that do not send it, and the baseline ignores it."""
 import copy

@@ -151,7 +151,7 @@ def test_next_page_blocks_complete_while_affordable():
 
 
 def test_read_for_open_required_check_is_floored_but_does_not_outrank_a_better_search():
-    """Codex r35: every read on an open check was ranked before any search whatever its score, so the
+    """Every read on an open check was ranked before any search whatever its score, so the
     planner read ten background records in a row (scores 0.227 vs 0.488 and still read)."""
     req = request([check()], [cand(), cand("read", "pubmed", impact=0, args={"ids": ["E9"]})])
     out = decide(req)
@@ -199,7 +199,7 @@ def test_an_answered_check_keeps_part_of_its_weight_while_a_required_one_is_open
 
 
 def test_a_family_that_finds_evidence_without_finishing_a_check_keeps_its_value():
-    """Codex PHX r2: a read that found a key fact but did not finish a broad check counted as zero gain, so
+    """A read that found a key fact but did not finish a broad check counted as zero gain, so
     the planner turned away from the family that was finding the events."""
     from planner.policy import _posterior
 

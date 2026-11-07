@@ -1,4 +1,4 @@
-"""T-24: a series value's comparability, apart from its extraction check. Not comparable now (withdrawn by a
+"""A series value's comparability, apart from its extraction check. Not comparable now (withdrawn by a
 correction, no known domain) makes reading its record a verification read; provisional changes nothing; the
 planner never admits or compares a value."""
 import copy
@@ -30,7 +30,7 @@ def test_a_provisional_value_changes_nothing():
 @pytest.mark.parametrize("comparability", [
     {"state": "not_comparable", "reasons": ["withdrawn_by_correction", "cross_domain_correction", "needs_subject"]},
     {"state": "not_comparable", "domain_basis": "unknown", "domain_id": None, "reasons": ["domain_unknown"]},
-    {"state": "not_comparable", "reasons": ["superseded_by_artifact", "needs_subject"]},  # T-26
+    {"state": "not_comparable", "reasons": ["superseded_by_artifact", "needs_subject"]},
 ])
 def test_a_value_not_comparable_now_makes_reading_its_record_a_verification_read(comparability):
     got = policy.decide(request(candidates=CANDIDATES, series=[point(**comparability)]))
