@@ -11,3 +11,7 @@ select = ["E4", "E7", "E9", "F", "W", "I", "C90"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 20
+
+[tool.code-metrics]
+# what scripts/code_metrics.py measures (that script is the same file in every repository)
+paths = ["planner"]
