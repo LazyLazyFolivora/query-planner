@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 from helpers import cand, check
 
+from planner import __version__
 from planner.service import app
 
 client = TestClient(app)
@@ -18,8 +19,21 @@ def body(**extra):
             "history": [], "budget": {"steps_left": 5, "reads_left": 5}, **extra}
 
 
-def test_health_needs_no_token():
-    assert client.get("/health").json() == {"status": "ok"}
+def test_health_needs_no_token_and_reports_what_this_planner_accepts():
+    out = client.get("/health").json()
+    assert out["status"] == "ok" and out["version"] == __version__
+    assert out["kinds"] == ["search", "read", "next_page", "fetch", "dataset", "analysis", "mechanism"]
+    assert out["channels"] == ["fabric_literal", "weknora_semantic", "gdelt_leads", "graph"]
+
+
+def test_the_response_carries_the_decision_record():
+    r = client.post("/v1/decide", json=body(sources=["pubmed"], channels=[{"channel": "graph", "available": False,
+                                                                          "reason": "03_not_run"}]), headers=AUTH)
+    out = r.json()
+    assert r.status_code == 200 and out["planner_version"] == __version__
+    assert out["reasons"] == ["scored", "open_required_read"] and len(out["scores"]) == 2
+    assert out["channels"] == [{"channel": "graph", "status": "unavailable", "reason": "03_not_run"}]
+    assert out["checks"] == [{"id": "Q1", "state": "open", "required": True, "reason": ""}]
 
 
 def test_decide_planner_and_baseline():
@@ -48,7 +62,9 @@ def test_unconfigured_token_is_refused(monkeypatch):
 
 def test_bad_request_uses_the_uniform_error_shape():
     for bad in ({"question": "q"}, body(policy="other"), body(candidates=[{"kind": "search", "cost": -1}]),
-                body(checks=[check("Q1"), check("Q1")]), body(budget={"steps_left": 1, "reads_left": 1, "x": 1})):
+                body(checks=[check("Q1"), check("Q1")]), body(budget={"steps_left": 1, "reads_left": 1, "x": 1}),
+                body(candidates=[{"kind": "serach"}]), body(candidates=[{"kind": "search", "channel": "weknora"}]),
+                body(channels=[{"channel": "graph", "available": False}])):
         r = client.post("/v1/decide", json=bad, headers=AUTH)
         assert r.status_code == 422
         assert set(r.json()) == {"error_code", "message"} and r.json()["error_code"] == "invalid_request"

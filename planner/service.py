@@ -7,8 +7,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import baseline, policy
-from .models import DecideRequest, DecideResponse
+from . import __version__, baseline, policy
+from .models import CHANNELS, KINDS, DecideRequest, DecideResponse
 
 app = FastAPI(title="query-planner", docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -49,7 +49,8 @@ async def internal_error(request: Request, exc: Exception):
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    """What this planner accepts, so the radar can tell before it sends a kind or a channel an older one refuses."""
+    return {"status": "ok", "version": __version__, "kinds": list(KINDS), "channels": list(CHANNELS)}
 
 
 @app.post("/v1/decide", response_model=DecideResponse)

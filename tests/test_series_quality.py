@@ -62,8 +62,9 @@ def test_the_baseline_ignores_the_series_state():
         assert baseline.decide(req) == baseline.decide(request(candidates=CANDIDATES))
 
 
-def test_the_answer_can_name_a_next_step_only():
-    assert set(DecideResponse.model_fields) == {"decision", "candidate", "reason", "scores"}
+def test_the_answer_names_a_next_step_and_records_why_but_writes_nothing():
+    assert set(DecideResponse.model_fields) == {"decision", "candidate", "reason", "scores", "reasons", "channels",
+                                                "checks", "planner_version"}
 
 
 @pytest.mark.parametrize("bad", [dict(point(), admit=True), point(current="maybe"),

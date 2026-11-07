@@ -4,7 +4,8 @@ Ported from the old kdd.py (kdd-information-gain-1.4), reduced to the SPEC 3.3 i
 """
 import json
 
-from .models import Candidate, DecideRequest, DecideResponse
+from .models import Candidate, DecideRequest, DecideResponse, HistoryItem, Reason
+from .record import respond
 
 PRIOR = 0.5        # untrained prior chance that an action of this family helps a check
 PRIOR_WEIGHT = 2   # the prior counts as this many past observations (Beta-style)
@@ -43,36 +44,54 @@ def _norm(value, key=""):
     return value
 
 
-def semantic_key(kind: str, source: str, args: dict) -> str:
-    """Same kind + source + normalized args = same action (case, spacing and term order do not matter)."""
-    return json.dumps([kind, source.strip().casefold(), _norm(args)], sort_keys=True,
+def semantic_key(kind: str, source: str, args: dict, channel: str | None = None) -> str:
+    """Same kind + source + channel + normalized args = same action (case, spacing and term order do not matter).
+    The same words through another channel, literal or semantic, are another action."""
+    return json.dumps([kind, source.strip().casefold(), channel, _norm(args)], sort_keys=True,
                       ensure_ascii=False, default=str)
-
-
-def live_candidates(req: DecideRequest) -> list[int]:
-    """Indexes of candidates not tried before and not repeated earlier in the same list."""
-    seen = {semantic_key(h.kind, h.source, h.args) for h in req.history}
-    live = []
-    for i, c in enumerate(req.candidates):
-        key = semantic_key(c.kind, c.source, c.args)
-        if key not in seen:
-            live.append(i)
-        seen.add(key)
-    return live
 
 
 def affordable(c: Candidate, req: DecideRequest) -> bool:
     return c.cost <= req.budget.steps_left and (c.kind != "read" or req.budget.reads_left >= 1)
 
 
+def eligibility(req: DecideRequest) -> list[str]:
+    """Per candidate, "live" or why it cannot be chosen now: outside the declared source set, on a channel the
+    radar says is unavailable, tried before, repeated earlier in the list, or too costly for the budget."""
+    sources = {s.casefold() for s in req.sources}
+    down = {c.channel for c in req.channels if not c.available}
+    tried = {semantic_key(h.kind, h.source, h.args, h.channel) for h in req.history}
+    listed: set[str] = set()
+    states = []
+    for c in req.candidates:
+        key = semantic_key(c.kind, c.source, c.args, c.channel)
+        if sources and c.source.strip().casefold() not in sources:
+            states.append("source_out_of_scope")
+        elif c.channel in down:
+            states.append("channel_unavailable")
+        elif key in tried:
+            states.append("already_done")
+        elif key in listed:
+            states.append("duplicate_in_list")
+        else:
+            states.append("live" if affordable(c, req) else "unaffordable")
+        listed.add(key)
+    return states
+
+
 # ---- scoring -------------------------------------------------------------
 
+def _family(item: Candidate | HistoryItem) -> tuple:
+    """Actions of one family share their record: the same kind from the same source through the same channel."""
+    return (item.kind, item.source.strip().casefold(), item.channel)
+
+
 def _posterior(c: Candidate, check_id: str, req: DecideRequest) -> float:
-    """Beta-style mean of the prior and past gains of the same action family (kind + source)."""
-    family = (c.kind, c.source.strip().casefold())
+    """Beta-style mean of the prior and past gains of the same action family (kind + source + channel)."""
+    family = _family(c)
     seen = [0.0 if h.status == "failed" else max(h.gain, EVIDENCE_WEIGHT * (h.evidence_gain or 0.0))
             for h in req.history
-            if h.status != "pending" and (h.kind, h.source.strip().casefold()) == family
+            if h.status != "pending" and _family(h) == family
             and (h.status == "failed" or check_id in h.target_checks)]
     return (PRIOR_WEIGHT * PRIOR + sum(seen)) / (PRIOR_WEIGHT + len(seen))
 
@@ -138,19 +157,43 @@ def obligation(c: Candidate, open_required: set[str]) -> bool:
     return c.kind == "next_page" or c.names_object or _critical_read(c, open_required)
 
 
+def live_reason(c: Candidate, open_required: set[str], req: DecideRequest) -> Reason:
+    """The strongest thing that ranks a candidate that can be chosen: the priority order, then the floors."""
+    if c.kind == "next_page":
+        return "next_page"
+    if c.names_object:
+        return "named_object"
+    if c.follows_up:
+        return "follows_up"
+    if c.kind == "read" and c.critical:
+        return "critical_read"
+    if verifies(c, req):
+        return "verify_series_value"
+    return "open_required_read" if _critical_read(c, open_required) else "scored"
+
+
 # ---- decision ------------------------------------------------------------
 
+def _scores(req: DecideRequest, states: list[str], done: set[str], open_required: set[str]) -> list[float]:
+    """One per candidate, in request order; 0.0 for one that cannot be chosen now."""
+    return [round(score(c, req, done, open_required), 6) if s == "live" else 0.0
+            for c, s in zip(req.candidates, states)]
+
+
+def _reasons(req: DecideRequest, states: list[str], open_required: set[str]) -> list[Reason]:
+    return [live_reason(c, open_required, req) if s == "live" else s for c, s in zip(req.candidates, states)]
+
+
 def decide(req: DecideRequest) -> DecideResponse:
+    states = eligibility(req)
     done = satisfied_ids(req)
     open_required = {c.id for c in req.checks if c.required} - done
-    live = live_candidates(req)
-    can_do = [i for i in live if affordable(req.candidates[i], req)]
-    scores = [0.0] * len(req.candidates)
-    for i in can_do:
-        scores[i] = round(score(req.candidates[i], req, done, open_required), 6)
+    can_do = [i for i, s in enumerate(states) if s == "live"]
+    scores = _scores(req, states, done, open_required)
+    reasons = _reasons(req, states, open_required)
 
     def out(decision, reason, index=None):
-        return DecideResponse(decision=decision, candidate=index, reason=reason, scores=scores)
+        return respond(req, decision, reason, index, reasons, scores)
 
     if any(h.status == "pending" for h in req.history):
         return out("insufficient", "pending_execution")
@@ -160,10 +203,8 @@ def decide(req: DecideRequest) -> DecideResponse:
         return out("complete", "required_checks_answered")
     if req.budget.steps_left <= 0:
         return out("insufficient", "step_limit")
-    if not live:
-        return out("insufficient", "no_candidates")
-    if not can_do:
-        return out("insufficient", "nothing_affordable")
+    if not can_do:  # nothing left to try, or something left that costs more than the budget
+        return out("insufficient", "nothing_affordable" if "unaffordable" in states else "no_candidates")
     best = min(can_do, key=lambda i: (tuple(-p for p in priority(req.candidates[i], open_required, req)),
                                       -scores[i], i))
     if scores[best] <= 0:
